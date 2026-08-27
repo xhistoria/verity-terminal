@@ -66,6 +66,11 @@ export function isQuoteExecutable(quote, context) {
   }
 }
 
+export function shouldCompactNav(compact, scrollPosition) {
+  const y = Math.max(0, Number(scrollPosition) || 0);
+  return compact ? y > 16 : y >= 80;
+}
+
 export function createExecutionLock() {
   let active = false;
   return Object.freeze({

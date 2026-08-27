@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { decodeFunctionData, encodeFunctionData, parseAbi } from 'viem';
 import { createBuyQuote } from '../src/quote.js';
-import { createExecutionLock, isQuoteExecutable, toRpcTransaction, formatUnits } from '../public/logic.js';
+import { createExecutionLock, formatUnits, isQuoteExecutable, shouldCompactNav, toRpcTransaction } from '../public/logic.js';
 
 const account = '0x0b95bDa3F7B92eA874D060B5485eFa55a19B5448';
 const other = '0x0000000000000000000000000000000000000001';
@@ -61,6 +61,13 @@ test('rejects mutated metadata, router, value, and minimum output', () => {
   assert.equal(isQuoteExecutable({ ...quote, minimumOut: '1' }, context), false);
   assert.equal(isQuoteExecutable({ ...quote, expectedOut: '999999999' }, context), false);
   assert.equal(isQuoteExecutable({ ...quote, slippageBps: 501 }, context), false);
+});
+
+test('floating navigation uses hysteresis instead of flickering at one boundary', () => {
+  assert.equal(shouldCompactNav(false, 79), false);
+  assert.equal(shouldCompactNav(false, 80), true);
+  assert.equal(shouldCompactNav(true, 17), true);
+  assert.equal(shouldCompactNav(true, 16), false);
 });
 
 test('execution lock permits at most one concurrent wallet submission', async () => {

@@ -1,4 +1,4 @@
-import { createExecutionLock, formatUnits, isQuoteExecutable, shortAddress, toRpcTransaction } from './logic.js';
+import { createExecutionLock, formatUnits, isQuoteExecutable, shortAddress, shouldCompactNav, toRpcTransaction } from './logic.js';
 
 const els = Object.fromEntries([
   'networkState','connectButton','quoteForm','amount','slippage','quoteButton','balanceText','expectedOut',
@@ -285,6 +285,21 @@ async function checkHealth() {
     els.networkState.querySelector('span:last-child').textContent = 'Provider unavailable';
   }
 }
+
+const floatingNav = document.getElementById('floatingNav');
+let navCompact = shouldCompactNav(false, window.scrollY);
+let navFrame = 0;
+floatingNav?.classList.toggle('is-scrolled', navCompact);
+window.addEventListener('scroll', () => {
+  if (navFrame) return;
+  navFrame = window.requestAnimationFrame(() => {
+    navFrame = 0;
+    const next = shouldCompactNav(navCompact, window.scrollY);
+    if (next === navCompact) return;
+    navCompact = next;
+    floatingNav?.classList.toggle('is-scrolled', navCompact);
+  });
+}, { passive: true });
 
 window.addEventListener('eip6963:announceProvider', (event) => {
   if (!state.providers.some((item) => item.info.uuid === event.detail.info.uuid)) state.providers.push(event.detail);

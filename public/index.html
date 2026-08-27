@@ -9,108 +9,149 @@
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <a class="skip-link" href="#trade">Skip to trade</a>
-  <div class="ambient ambient-a"></div><div class="ambient ambient-b"></div>
-  <header class="nav shell">
-    <a class="brand" href="/" aria-label="Verity home"><span class="brand-mark">V</span><span>VERITY</span></a>
+  <a class="skip-link" href="#trade">Skip to execution</a>
+
+  <header class="nav floating-nav" id="floatingNav">
+    <a class="brand" href="/" aria-label="Verity home">
+      <svg class="brand-mark" viewBox="0 0 32 32" role="img" aria-label="Verity mark">
+        <path d="M7 8.5 16 25 25 8.5h-5.2L16 16l-3.8-7.5H7Z" fill="currentColor"/>
+      </svg>
+      <span>VERITY</span>
+    </a>
+    <nav class="nav-links" aria-label="Primary navigation">
+      <a href="#trade">Execute</a>
+      <a href="#safety">Safety</a>
+    </nav>
     <div class="nav-actions">
-      <div class="network-state" id="networkState"><span class="dot"></span><span>Checking chain</span></div>
+      <div class="network-state" id="networkState"><span class="dot" aria-hidden="true"></span><span>Checking chain</span></div>
       <button class="button secondary" id="connectButton" type="button">Connect wallet</button>
     </div>
   </header>
 
-  <main class="shell">
-    <section class="hero">
-      <p class="eyebrow">NON-CUSTODIAL EXECUTION · ROBINHOOD CHAIN</p>
-      <h1>Know the outcome<br>before you sign.</h1>
-      <p class="hero-copy">A constrained execution path with live on-chain simulation, explicit slippage protection, local wallet signing, and settlement truth.</p>
-      <div class="truth-row" aria-label="Safety properties">
-        <span>Server never signs</span><span>Allowlisted route</span><span>Exact calldata</span>
+  <main>
+    <section class="hero shell animate">
+      <p class="eyebrow">NON-CUSTODIAL · ROBINHOOD CHAIN</p>
+      <div class="hero-grid">
+        <h1>Understand first.<br><span>Execute with limits.</span></h1>
+        <div class="hero-aside">
+          <p class="hero-copy">A constrained execution path with live on-chain simulation, explicit slippage protection, local wallet signing, and settlement truth.</p>
+          <div class="truth-row" aria-label="Safety properties">
+            <span>Server never signs</span><span>Allowlisted route</span><span>Exact calldata</span>
+          </div>
+        </div>
       </div>
     </section>
 
-    <section class="workspace" id="trade">
-      <div class="trade-panel panel">
-        <div class="panel-head">
-          <div><p class="label">EXECUTION</p><h2>Buy USDG</h2></div>
-          <span class="scope-badge">ETH → USDG</span>
+    <section class="product-stage shell animate" id="trade" aria-label="Execution terminal">
+      <div class="window-bar">
+        <div>
+          <span class="window-kicker">VERITY TERMINAL</span>
+          <strong>ETH / USDG</strong>
         </div>
+        <span class="window-mode">CONSTRAINED PREVIEW</span>
+      </div>
 
-        <form id="quoteForm">
-          <label class="asset-input">
-            <span>You pay</span>
-            <div><input id="amount" name="amount" type="number" inputmode="decimal" min="0.000001" max="1" step="0.0001" value="0.001" required><strong>ETH</strong></div>
-            <small id="balanceText">Connect wallet to read balance</small>
-          </label>
-
-          <div class="route-line"><span></span><b>↓</b><span></span></div>
-
-          <div class="asset-output">
-            <span>You receive <small>estimated</small></span>
-            <div><strong id="expectedOut">—</strong><b>USDG</b></div>
-            <small id="quoteSource">Live simulation required</small>
+      <div class="workspace">
+        <div class="trade-panel app-card">
+          <div class="panel-head">
+            <div><p class="label">01 · INTENT</p><h2>Prepare execution</h2></div>
+            <span class="scope-badge">ETH → USDG</span>
           </div>
 
-          <label class="field-row" for="slippage">
-            <span>Max slippage</span>
-            <select id="slippage" name="slippage">
-              <option value="10">0.10%</option>
-              <option value="50" selected>0.50%</option>
-              <option value="100">1.00%</option>
-              <option value="300">3.00%</option>
-              <option value="500">5.00%</option>
-            </select>
-          </label>
+          <form id="quoteForm">
+            <label class="asset-input">
+              <span>You pay</span>
+              <div><input id="amount" name="amount" type="number" inputmode="decimal" min="0.000001" max="1" step="0.0001" value="0.001" required><strong>ETH</strong></div>
+              <small id="balanceText">Connect wallet to read balance</small>
+            </label>
 
-          <button class="button primary wide" id="quoteButton" type="submit" disabled>Connect wallet to simulate</button>
-        </form>
-        <p class="inline-status" id="inlineStatus" role="status" aria-live="polite">No transaction has been prepared.</p>
+            <div class="route-line" aria-label="Swap direction"><span></span><b>TO</b><span></span></div>
+
+            <div class="asset-output">
+              <span>You receive <small>estimated</small></span>
+              <div><strong id="expectedOut">—</strong><b>USDG</b></div>
+              <small id="quoteSource">Live simulation required</small>
+            </div>
+
+            <label class="field-row" for="slippage">
+              <span>Max slippage</span>
+              <select id="slippage" name="slippage">
+                <option value="10">0.10%</option>
+                <option value="50" selected>0.50%</option>
+                <option value="100">1.00%</option>
+                <option value="300">3.00%</option>
+                <option value="500">5.00%</option>
+              </select>
+            </label>
+
+            <button class="button primary wide" id="quoteButton" type="submit" disabled>Connect wallet to simulate</button>
+          </form>
+          <p class="inline-status" id="inlineStatus" role="status" aria-live="polite">No transaction has been prepared.</p>
+        </div>
+
+        <aside class="review-panel app-card" aria-labelledby="reviewTitle">
+          <div class="panel-head">
+            <div><p class="label">02 · EVIDENCE</p><h2 id="reviewTitle">Verify every field</h2></div>
+            <span class="state-badge" id="txState">DRAFT</span>
+          </div>
+          <div class="empty-review" id="emptyReview">
+            <div class="shield-icon" aria-hidden="true">✓</div>
+            <h3>Simulation comes first</h3>
+            <p>Connect a wallet and request a quote. Verity will show the exact route, minimum output, gas estimate, and recipient before signing.</p>
+          </div>
+          <div class="review-content hidden" id="reviewContent">
+            <dl class="evidence-list">
+              <div><dt>Expected output</dt><dd id="reviewExpected">—</dd></div>
+              <div><dt>Guaranteed minimum</dt><dd id="reviewMinimum">—</dd></div>
+              <div><dt>Wallet recipient</dt><dd id="reviewRecipient">—</dd></div>
+              <div><dt>Native value</dt><dd id="reviewValue">—</dd></div>
+              <div><dt>Token path</dt><dd>ETH → USDG</dd></div>
+              <div><dt>Call selector</dt><dd><code>0x5ae401dc</code></dd></div>
+              <div><dt>Estimated gas</dt><dd id="reviewGas">—</dd></div>
+              <div><dt>Simulated block</dt><dd id="reviewBlock">—</dd></div>
+              <div><dt>Pool fee</dt><dd>0.01%</dd></div>
+              <div><dt>Router</dt><dd><a id="routerLink" target="_blank" rel="noopener noreferrer">—</a></dd></div>
+              <div><dt>On-chain deadline</dt><dd id="reviewDeadline">—</dd></div>
+              <div><dt>Quote expires</dt><dd id="quoteExpiry">—</dd></div>
+            </dl>
+            <details class="technical-details"><summary>Exact calldata</summary><code id="reviewCalldata">—</code></details>
+            <div class="simulation-pass"><span aria-hidden="true">✓</span><div><strong>Simulation passed</strong><small>Expected at the quoted chain state—not a guarantee.</small></div></div>
+            <label class="confirm-check"><input type="checkbox" id="reviewCheck"><span>I reviewed the recipient, minimum output, and wallet request.</span></label>
+            <button class="button primary wide" id="executeButton" disabled>Review before signing</button>
+            <a class="receipt-link hidden" id="receiptLink" target="_blank" rel="noopener noreferrer">View transaction ↗</a>
+          </div>
+        </aside>
       </div>
-
-      <aside class="review-panel panel" aria-labelledby="reviewTitle">
-        <div class="panel-head"><div><p class="label">REVIEW</p><h2 id="reviewTitle">Transaction evidence</h2></div><span class="state-badge" id="txState">DRAFT</span></div>
-        <div class="empty-review" id="emptyReview">
-          <div class="shield-icon">✓</div>
-          <h3>Simulation comes first</h3>
-          <p>Connect a wallet and request a quote. Verity will show the exact route, minimum output, gas estimate, and recipient before signing.</p>
-        </div>
-        <div class="review-content hidden" id="reviewContent">
-          <dl class="evidence-list">
-            <div><dt>Expected output</dt><dd id="reviewExpected">—</dd></div>
-            <div><dt>Guaranteed minimum</dt><dd id="reviewMinimum">—</dd></div>
-            <div><dt>Wallet recipient</dt><dd id="reviewRecipient">—</dd></div>
-            <div><dt>Native value</dt><dd id="reviewValue">—</dd></div>
-            <div><dt>Token path</dt><dd>ETH → USDG</dd></div>
-            <div><dt>Call selector</dt><dd><code>0x5ae401dc</code></dd></div>
-            <div><dt>Estimated gas</dt><dd id="reviewGas">—</dd></div>
-            <div><dt>Simulated block</dt><dd id="reviewBlock">—</dd></div>
-            <div><dt>Pool fee</dt><dd>0.01%</dd></div>
-            <div><dt>Router</dt><dd><a id="routerLink" target="_blank" rel="noopener noreferrer">—</a></dd></div>
-            <div><dt>On-chain deadline</dt><dd id="reviewDeadline">—</dd></div>
-            <div><dt>Quote expires</dt><dd id="quoteExpiry">—</dd></div>
-          </dl>
-          <details class="technical-details"><summary>Exact calldata</summary><code id="reviewCalldata">—</code></details>
-          <div class="simulation-pass"><span>✓</span><div><strong>Simulation passed</strong><small>Expected at the quoted chain state—not a guarantee.</small></div></div>
-          <label class="confirm-check"><input type="checkbox" id="reviewCheck"><span>I reviewed the recipient, minimum output, and wallet request.</span></label>
-          <button class="button primary wide" id="executeButton" disabled>Review before signing</button>
-          <a class="receipt-link hidden" id="receiptLink" target="_blank" rel="noopener noreferrer">View transaction ↗</a>
-        </div>
-      </aside>
     </section>
 
-    <section class="status-grid">
-      <article class="panel compact"><p class="label">ROUTE POLICY</p><h3>One verified path</h3><p>Only ETH → USDG through the pinned Uniswap V3 pool and SwapRouter02 is enabled. Arbitrary tokens and contracts are rejected.</p></article>
-      <article class="panel compact"><p class="label">SIGNING BOUNDARY</p><h3>Your wallet, your approval</h3><p>The server prepares and simulates calldata. Only your connected wallet can sign and broadcast the transaction.</p></article>
-      <article class="panel compact"><p class="label">SETTLEMENT TRUTH</p><h3>Hash is not success</h3><p>Broadcast, pending, receipt-confirmed, reverted, and unknown remain separate states. This beta requires a successful receipt and does not claim Ethereum finality.</p></article>
+    <section class="safety shell" id="safety">
+      <div class="section-heading animate">
+        <p class="eyebrow">BOUNDARIES, NOT PROMISES</p>
+        <h2>Evidence before action.<br>Truth after broadcast.</h2>
+      </div>
+      <div class="status-grid">
+        <article class="safety-card animate"><span class="card-index">01</span><p class="label">ROUTE POLICY</p><h3>One verified path</h3><p>Only ETH → USDG through the pinned Uniswap V3 pool and SwapRouter02 is enabled. Arbitrary tokens and contracts are rejected.</p></article>
+        <article class="safety-card animate"><span class="card-index">02</span><p class="label">SIGNING BOUNDARY</p><h3>Your wallet, your approval</h3><p>The server prepares and simulates calldata. Only your connected wallet can sign and broadcast the transaction.</p></article>
+        <article class="safety-card animate"><span class="card-index">03</span><p class="label">SETTLEMENT TRUTH</p><h3>Hash is not success</h3><p>Broadcast, pending, receipt-confirmed, reverted, and unknown remain separate states. A receipt is required; full finality is not claimed.</p></article>
+      </div>
     </section>
 
-    <section class="scope-note">
-      <span>PUBLIC BETA SCOPE</span>
+    <section class="scope-note shell animate">
+      <span>CONSTRAINED PREVIEW SCOPE</span>
       <p>This release intentionally excludes unattended copytrading, server-held keys, token launches, and Stock Token/RWA execution. Start small and verify every wallet prompt.</p>
     </section>
   </main>
 
-  <footer class="shell footer"><span>VERITY · INDEPENDENT SOFTWARE</span><span>Not affiliated with Robinhood or Uniswap</span></footer>
+  <footer class="footer-wrap">
+    <div class="footer-panel">
+      <div>
+        <p class="eyebrow">VERITY TERMINAL</p>
+        <h2>Understand first.<br>Verify settlement.</h2>
+      </div>
+      <div class="footer-meta"><span>INDEPENDENT SOFTWARE</span><span>Not affiliated with Robinhood or Uniswap</span></div>
+    </div>
+  </footer>
+
   <script type="module" src="/app.js"></script>
 </body>
 </html>
