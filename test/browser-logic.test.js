@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { decodeFunctionData, encodeFunctionData, parseAbi } from 'viem';
 import { createBuyQuote } from '../src/quote.js';
-import { createExecutionLock, formatUnits, isQuoteExecutable, shouldCompactNav, toRpcTransaction } from '../public/logic.js';
+import { createExecutionLock, formatUnits, isQuoteExecutable, shouldCompactNav, toRpcTransaction, walletConnectionGuidance } from '../public/logic.js';
 
 const account = '0x0b95bDa3F7B92eA874D060B5485eFa55a19B5448';
 const other = '0x0000000000000000000000000000000000000001';
@@ -61,6 +61,13 @@ test('rejects mutated metadata, router, value, and minimum output', () => {
   assert.equal(isQuoteExecutable({ ...quote, minimumOut: '1' }, context), false);
   assert.equal(isQuoteExecutable({ ...quote, expectedOut: '999999999' }, context), false);
   assert.equal(isQuoteExecutable({ ...quote, slippageBps: 501 }, context), false);
+});
+
+test('wallet connection failures explain the actual supported path', () => {
+  assert.match(walletConnectionGuidance({ message: 'wallet_not_found' }), /wallet browser/i);
+  assert.match(walletConnectionGuidance({ message: 'wallet_not_found' }), /WalletConnect is not available/i);
+  assert.equal(walletConnectionGuidance({ code: 4001 }), 'Wallet connection rejected.');
+  assert.match(walletConnectionGuidance(new Error('other')), /compatible EIP-1193 wallet/i);
 });
 
 test('floating navigation uses hysteresis instead of flickering at one boundary', () => {

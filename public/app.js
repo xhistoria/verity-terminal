@@ -1,14 +1,15 @@
-import { createExecutionLock, formatUnits, isQuoteExecutable, shortAddress, shouldCompactNav, toRpcTransaction } from './logic.js';
+import { createExecutionLock, formatUnits, isQuoteExecutable, shortAddress, shouldCompactNav, toRpcTransaction, walletConnectionGuidance } from './logic.js';
 
 const els = Object.fromEntries([
   'networkState','connectButton','quoteForm','amount','slippage','quoteButton','balanceText','expectedOut',
   'quoteSource','inlineStatus','txState','emptyReview','reviewContent','reviewExpected','reviewMinimum',
   'reviewRecipient','reviewValue','reviewGas','reviewBlock','reviewDeadline','reviewCalldata','routerLink','quoteExpiry',
-  'reviewCheck','executeButton','receiptLink',
+  'reviewCheck','executeButton','receiptLink','walletDialog','walletDialogMessage','closeWalletDialog',
 ].map((id) => [id, document.getElementById(id)]));
 
 const state = { providers: [], provider: null, account: null, chainId: null, quote: null, activeTx: null, quoteRequest: 0 };
 const executionLock = createExecutionLock();
+const boundProviders = new WeakSet();
 const CHAIN = { id: 4663, hex: '0x1237', rpc: 'https://rpc.mainnet.chain.robinhood.com', explorer: 'https://robinhoodchain.blockscout.com' };
 
 function setStatus(message, type = '') {
@@ -72,7 +73,8 @@ async function ensureChain() {
 }
 
 function bindProvider(provider) {
-  if (!provider?.on) return;
+  if (!provider?.on || boundProviders.has(provider)) return;
+  boundProviders.add(provider);
   provider.on('accountsChanged', (accounts) => {
     state.account = accounts?.[0] || null;
     els.connectButton.textContent = shortAddress(state.account);
@@ -92,20 +94,48 @@ function bindProvider(provider) {
   });
 }
 
+function showWalletDialog(message) {
+  els.walletDialogMessage.textContent = message;
+  if (typeof els.walletDialog.showModal === 'function') {
+    if (!els.walletDialog.open) els.walletDialog.showModal();
+  } else {
+    els.walletDialog.setAttribute('open', '');
+  }
+  els.closeWalletDialog.focus();
+}
+
+async function discoverWalletProvider() {
+  let chosen = state.providers[0]?.provider || window.ethereum;
+  if (chosen) return chosen;
+  window.dispatchEvent(new Event('eip6963:requestProvider'));
+  await new Promise((resolve) => setTimeout(resolve, 350));
+  chosen = state.providers[0]?.provider || window.ethereum;
+  return chosen || null;
+}
+
 async function connectWallet() {
+  els.connectButton.disabled = true;
+  els.connectButton.textContent = 'Detecting wallet…';
+  setStatus('Looking for a compatible browser wallet.');
   try {
-    const chosen = state.providers[0]?.provider || window.ethereum;
+    const chosen = await discoverWalletProvider();
     if (!chosen) throw new Error('wallet_not_found');
     state.provider = chosen;
     bindProvider(chosen);
     const accounts = await chosen.request({ method: 'eth_requestAccounts' });
+    if (!accounts?.[0]) throw new Error('wallet_account_unavailable');
     state.account = accounts[0];
     await ensureChain();
     els.connectButton.textContent = shortAddress(state.account);
     await refreshBalance();
     setStatus('Wallet connected. Request a live simulation.');
   } catch (error) {
-    setStatus(error?.code === 4001 ? 'Wallet connection rejected.' : 'Unable to connect a compatible wallet.', 'error');
+    const message = walletConnectionGuidance(error);
+    setStatus(message, 'error');
+    if (error?.code !== 4001) showWalletDialog(message);
+  } finally {
+    els.connectButton.disabled = false;
+    if (!state.account) els.connectButton.textContent = 'Connect wallet';
   }
 }
 
@@ -307,6 +337,15 @@ window.addEventListener('eip6963:announceProvider', (event) => {
 window.dispatchEvent(new Event('eip6963:requestProvider'));
 if (window.ethereum) state.providers.push({ info: { uuid: 'legacy', name: 'Browser wallet' }, provider: window.ethereum });
 
+els.closeWalletDialog.addEventListener('click', () => {
+  if (typeof els.walletDialog.close === 'function') els.walletDialog.close();
+  else els.walletDialog.removeAttribute('open');
+});
+els.walletDialog.addEventListener('click', (event) => {
+  if (event.target !== els.walletDialog) return;
+  if (typeof els.walletDialog.close === 'function') els.walletDialog.close();
+  else els.walletDialog.removeAttribute('open');
+});
 els.connectButton.addEventListener('click', connectWallet);
 els.quoteForm.addEventListener('submit', requestQuote);
 els.reviewCheck.addEventListener('change', updateExpiry);

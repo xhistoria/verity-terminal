@@ -28,6 +28,23 @@
     </div>
   </header>
 
+  <dialog class="wallet-dialog" id="walletDialog" aria-labelledby="walletDialogTitle" aria-describedby="walletDialogMessage">
+    <div class="wallet-dialog-card">
+      <p class="label">WALLET CONNECTION</p>
+      <h2 id="walletDialogTitle">Wallet needs a compatible browser</h2>
+      <p id="walletDialogMessage">No compatible wallet was detected.</p>
+      <div class="wallet-support-note">
+        <strong>Supported now</strong>
+        <span>EIP-6963 and injected EIP-1193 browser wallets.</span>
+      </div>
+      <div class="wallet-support-note">
+        <strong>Not available yet</strong>
+        <span>WalletConnect from ordinary mobile Chrome, Safari, or Telegram's in-app browser.</span>
+      </div>
+      <button class="button primary wide" id="closeWalletDialog" type="button">Close</button>
+    </div>
+  </dialog>
+
   <main>
     <section class="hero shell animate">
       <p class="eyebrow">NON-CUSTODIAL · ROBINHOOD CHAIN</p>

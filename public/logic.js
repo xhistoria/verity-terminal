@@ -66,6 +66,14 @@ export function isQuoteExecutable(quote, context) {
   }
 }
 
+export function walletConnectionGuidance(error) {
+  if (error?.code === 4001) return 'Wallet connection rejected.';
+  if (error?.message === 'wallet_not_found') {
+    return 'No compatible wallet was detected. Open Verity inside your wallet browser or use a desktop browser with an injected wallet extension. WalletConnect is not available yet.';
+  }
+  return 'Unable to connect a compatible EIP-1193 wallet. Check that the wallet is unlocked, then try again.';
+}
+
 export function shouldCompactNav(compact, scrollPosition) {
   const y = Math.max(0, Number(scrollPosition) || 0);
   return compact ? y > 16 : y >= 80;

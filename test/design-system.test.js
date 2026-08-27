@@ -34,3 +34,10 @@ test('implements the design typography, floating chrome, and accessibility basel
   assert.match(styles, /prefers-reduced-motion:\s*reduce/);
   assert.doesNotMatch(html, /fonts\.googleapis|cdn\.jsdelivr/);
 });
+
+test('wallet connection errors use an immediately visible accessible dialog', () => {
+  assert.match(html, /<dialog[^>]+id="walletDialog"/);
+  assert.match(html, /id="walletDialogMessage"/);
+  assert.match(html, /id="closeWalletDialog"/);
+  assert.match(html, /aria-labelledby="walletDialogTitle"/);
+});

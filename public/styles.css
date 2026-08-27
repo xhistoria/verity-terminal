@@ -264,6 +264,57 @@ p {
   padding: var(--space-md) var(--space-lg);
 }
 
+.wallet-dialog {
+  width: min(92%, 34rem);
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-surface);
+  background: var(--app-card);
+  color: var(--ink);
+  box-shadow: var(--shadow-panel);
+}
+
+.wallet-dialog::backdrop {
+  background: var(--canvas-deep);
+  opacity: 0.88;
+}
+
+.wallet-dialog-card {
+  display: grid;
+  gap: var(--space-md);
+  padding: var(--space-lg);
+}
+
+.wallet-dialog-card h2 {
+  font-size: var(--text-h3);
+}
+
+.wallet-dialog-card > p:not(.label) {
+  color: var(--ink-soft);
+}
+
+.wallet-support-note {
+  display: grid;
+  gap: var(--space-xs);
+  padding: var(--space-md);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-nested);
+  background: var(--surface-1);
+}
+
+.wallet-support-note strong {
+  font-weight: 500;
+}
+
+.wallet-support-note span {
+  color: var(--ink-soft);
+  font-size: var(--text-meta);
+}
+
+.wallet-dialog-card .button {
+  margin-top: var(--space-xs);
+}
+
 .hero {
   padding-block: calc(var(--space-section) + var(--space-lg)) var(--space-section);
 }
