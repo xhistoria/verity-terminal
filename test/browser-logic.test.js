@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { decodeFunctionData, encodeFunctionData, parseAbi } from 'viem';
 import { createBuyQuote } from '../src/quote.js';
-import { createExecutionLock, formatUnits, isQuoteExecutable, shouldCompactNav, toRpcTransaction, walletConnectionGuidance } from '../public/logic.js';
+import { createExecutionLock, createWalletContextGuard, formatUnits, isQuoteExecutable, shouldCompactNav, toRpcTransaction, walletConnectionGuidance } from '../public/logic.js';
 
 const account = '0x0b95bDa3F7B92eA874D060B5485eFa55a19B5448';
 const other = '0x0000000000000000000000000000000000000001';
@@ -65,8 +65,10 @@ test('rejects mutated metadata, router, value, and minimum output', () => {
 
 test('wallet connection failures explain the actual supported path', () => {
   assert.match(walletConnectionGuidance({ message: 'wallet_not_found' }), /wallet browser/i);
-  assert.match(walletConnectionGuidance({ message: 'wallet_not_found' }), /WalletConnect is not available/i);
+  assert.match(walletConnectionGuidance({ message: 'wallet_not_found' }), /WalletConnect availability depends/i);
   assert.equal(walletConnectionGuidance({ code: 4001 }), 'Wallet connection rejected.');
+  assert.equal(walletConnectionGuidance({ name: 'UserRejectedRequestError' }), 'Wallet connection rejected.');
+  assert.match(walletConnectionGuidance({ message: 'wallet_connector_unavailable' }), /no longer available/i);
   assert.match(walletConnectionGuidance(new Error('other')), /compatible EIP-1193 wallet/i);
 });
 
@@ -91,13 +93,23 @@ test('execution lock permits at most one concurrent wallet submission', async ()
   assert.equal(lock.inFlight(), false);
 });
 
-test('builds an exact wallet transaction without adding permissions', () => {
-  assert.deepEqual(toRpcTransaction(quote), {
+test('builds a chain-pinned wallet transaction without adding permissions', () => {
+  assert.deepEqual(toRpcTransaction(quote, 4663), {
     from: account,
     to: quote.to,
     value: '0x38d7ea4c68000',
     data: quote.data,
+    chainId: '0x1237',
   });
+});
+
+test('wallet context guard invalidates an already-open signature request', () => {
+  const guard = createWalletContextGuard();
+  const beforePrompt = guard.snapshot();
+  assert.equal(guard.isCurrent(beforePrompt), true);
+  guard.invalidate();
+  assert.equal(guard.isCurrent(beforePrompt), false);
+  assert.equal(guard.snapshot(), beforePrompt + 1);
 });
 
 test('formats token amounts without floating-point conversion', () => {

@@ -111,6 +111,10 @@ test('static assets receive browser security headers', async () => {
   const response = await app.fetch(request('/'));
   assert.equal(response.status, 200);
   assert.match(response.headers.get('content-security-policy'), /default-src 'self'/);
+  assert.match(response.headers.get('content-security-policy'), /wss:\/\/relay\.walletconnect\.com/);
+  assert.match(response.headers.get('content-security-policy'), /font-src[^;]+fonts\.reown\.com/);
+  assert.match(response.headers.get('content-security-policy'), /frame-src[^;]+verify\.walletconnect\.com/);
+  assert.equal(response.headers.get('cross-origin-opener-policy'), 'same-origin-allow-popups');
   assert.equal(response.headers.get('x-frame-options'), 'DENY');
   assert.equal(response.headers.get('referrer-policy'), 'no-referrer');
 });

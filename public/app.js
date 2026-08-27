@@ -1,14 +1,24 @@
-import { createExecutionLock, formatUnits, isQuoteExecutable, shortAddress, shouldCompactNav, toRpcTransaction, walletConnectionGuidance } from './logic.js';
+import { createExecutionLock, createWalletContextGuard, formatUnits, isQuoteExecutable, shortAddress, shouldCompactNav, toRpcTransaction, walletConnectionGuidance } from './logic.js';
+import { createJournalEntry, loadJournal, mergeJournalEntry, saveJournal, updateJournalReceipt } from './journal.js';
+import {
+  connectWalletConnector,
+  getWalletConnectState,
+  listWalletConnectors,
+  reconnectWalletConnector,
+  watchWalletConnectors,
+} from './wallet-runtime.js';
 
 const els = Object.fromEntries([
   'networkState','connectButton','quoteForm','amount','slippage','quoteButton','balanceText','expectedOut',
   'quoteSource','inlineStatus','txState','emptyReview','reviewContent','reviewExpected','reviewMinimum',
   'reviewRecipient','reviewValue','reviewGas','reviewBlock','reviewDeadline','reviewCalldata','routerLink','quoteExpiry',
-  'reviewCheck','executeButton','receiptLink','walletDialog','walletDialogMessage','closeWalletDialog',
+  'reviewCheck','executeButton','receiptLink','walletDialog','walletDialogTitle','walletDialogMessage','walletOptions',
+  'walletSetupNote','walletConnectState','closeWalletDialog','journalCoverage','exportJournalButton','journalEmpty','journalList',
 ].map((id) => [id, document.getElementById(id)]));
 
-const state = { providers: [], provider: null, account: null, chainId: null, quote: null, activeTx: null, quoteRequest: 0 };
+const state = { provider: null, connector: null, account: null, chainId: null, quote: null, activeTx: null, quoteRequest: 0, journal: loadJournal() };
 const executionLock = createExecutionLock();
+const walletContextGuard = createWalletContextGuard();
 const boundProviders = new WeakSet();
 const CHAIN = { id: 4663, hex: '0x1237', rpc: 'https://rpc.mainnet.chain.robinhood.com', explorer: 'https://robinhoodchain.blockscout.com' };
 
@@ -76,66 +86,139 @@ function bindProvider(provider) {
   if (!provider?.on || boundProviders.has(provider)) return;
   boundProviders.add(provider);
   provider.on('accountsChanged', (accounts) => {
+    walletContextGuard.invalidate();
     state.account = accounts?.[0] || null;
-    els.connectButton.textContent = shortAddress(state.account);
+    els.connectButton.textContent = state.account ? shortAddress(state.account) : 'Connect wallet';
     clearQuote('Account changed. Request a fresh simulation.');
     updateQuoteButton();
     refreshBalance();
   });
   provider.on('chainChanged', (chainHex) => {
+    walletContextGuard.invalidate();
     state.chainId = Number(BigInt(chainHex));
     clearQuote('Network changed. Request a fresh simulation.');
     updateQuoteButton();
   });
   provider.on('disconnect', () => {
-    state.account = null; state.chainId = null; state.provider = null;
+    walletContextGuard.invalidate();
+    state.account = null; state.chainId = null; state.provider = null; state.connector = null;
     els.connectButton.textContent = 'Connect wallet';
     clearQuote('Wallet disconnected.'); updateQuoteButton();
   });
 }
 
-function showWalletDialog(message) {
-  els.walletDialogMessage.textContent = message;
+function showWalletDialog() {
   if (typeof els.walletDialog.showModal === 'function') {
     if (!els.walletDialog.open) els.walletDialog.showModal();
   } else {
     els.walletDialog.setAttribute('open', '');
   }
-  els.closeWalletDialog.focus();
+  const target = els.walletOptions.querySelector('button:not([disabled])') || els.closeWalletDialog;
+  target.focus();
 }
 
-async function discoverWalletProvider() {
-  let chosen = state.providers[0]?.provider || window.ethereum;
-  if (chosen) return chosen;
-  window.dispatchEvent(new Event('eip6963:requestProvider'));
-  await new Promise((resolve) => setTimeout(resolve, 350));
-  chosen = state.providers[0]?.provider || window.ethereum;
-  return chosen || null;
+function closeWalletDialog() {
+  if (typeof els.walletDialog.close === 'function') els.walletDialog.close();
+  else els.walletDialog.removeAttribute('open');
 }
 
-async function connectWallet() {
+function renderWalletOptions(options) {
+  els.walletOptions.replaceChildren();
+  for (const option of options) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'wallet-option';
+    button.dataset.connectorUid = option.uid;
+    const name = document.createElement('strong');
+    name.textContent = option.name;
+    const method = document.createElement('span');
+    method.textContent = option.id === 'walletConnect' ? 'QR / mobile' : 'Browser wallet';
+    button.append(name, method);
+    els.walletOptions.append(button);
+  }
+}
+
+async function openWalletChooser() {
   els.connectButton.disabled = true;
-  els.connectButton.textContent = 'Detecting wallet…';
-  setStatus('Looking for a compatible browser wallet.');
+  els.connectButton.textContent = 'Detecting wallets…';
+  setStatus('Discovering available wallet connectors.');
+  els.walletDialogTitle.textContent = 'Choose a wallet';
+  els.walletDialogMessage.textContent = 'Select a wallet. Connecting does not authorize a transaction.';
   try {
-    const chosen = await discoverWalletProvider();
-    if (!chosen) throw new Error('wallet_not_found');
-    state.provider = chosen;
-    bindProvider(chosen);
-    const accounts = await chosen.request({ method: 'eth_requestAccounts' });
-    if (!accounts?.[0]) throw new Error('wallet_account_unavailable');
-    state.account = accounts[0];
+    const options = await listWalletConnectors();
+    renderWalletOptions(options);
+    const wc = getWalletConnectState();
+    els.walletConnectState.textContent = wc.configured
+      ? 'Available for QR pairing and supported mobile wallet deep links.'
+      : `${wc.message} Injected Rabby, MetaMask, and compatible browser wallets remain available.`;
+    els.walletSetupNote.classList.toggle('hidden', wc.configured && options.length > 0);
+    if (options.length === 0) {
+      els.walletDialogTitle.textContent = 'No wallet detected';
+      els.walletDialogMessage.textContent = wc.configured
+        ? 'No injected wallet was detected. Use WalletConnect when it becomes available in the list.'
+        : 'Open Verity in a Rabby or MetaMask browser, or install an EIP-6963 compatible desktop extension.';
+      setStatus('No compatible wallet connector is currently available.', 'error');
+    } else {
+      setStatus(options.length > 1 ? 'Wallet selection required.' : 'Wallet detected. Select it to continue.');
+    }
+    showWalletDialog();
+  } catch (error) {
+    const message = walletConnectionGuidance(error);
+    els.walletDialogTitle.textContent = 'Wallet discovery failed';
+    els.walletDialogMessage.textContent = message;
+    renderWalletOptions([]);
+    els.walletConnectState.textContent = getWalletConnectState().message;
+    setStatus(message, 'error');
+    showWalletDialog();
+  } finally {
+    els.connectButton.disabled = false;
+    els.connectButton.textContent = state.account ? shortAddress(state.account) : 'Connect wallet';
+  }
+}
+
+async function connectWallet(uid) {
+  const buttons = [...els.walletOptions.querySelectorAll('button')];
+  buttons.forEach((button) => { button.disabled = true; });
+  els.walletDialogMessage.textContent = 'Connection requested. Continue in your selected wallet.';
+  setStatus('Connection requested. Review the wallet prompt.');
+  try {
+    const connection = await connectWalletConnector(uid);
+    walletContextGuard.invalidate();
+    state.provider = connection.provider;
+    state.connector = connection.connector;
+    state.account = connection.account;
+    state.chainId = connection.chainId;
+    bindProvider(connection.provider);
     await ensureChain();
     els.connectButton.textContent = shortAddress(state.account);
     await refreshBalance();
-    setStatus('Wallet connected. Request a live simulation.');
+    closeWalletDialog();
+    setStatus(`${connection.connector.name} connected. Request a live simulation.`);
   } catch (error) {
     const message = walletConnectionGuidance(error);
+    els.walletDialogMessage.textContent = message;
     setStatus(message, 'error');
-    if (error?.code !== 4001) showWalletDialog(message);
   } finally {
-    els.connectButton.disabled = false;
-    if (!state.account) els.connectButton.textContent = 'Connect wallet';
+    buttons.forEach((button) => { button.disabled = false; });
+  }
+}
+
+async function restoreWalletConnection() {
+  try {
+    const connection = await reconnectWalletConnector();
+    if (!connection) return;
+    walletContextGuard.invalidate();
+    state.provider = connection.provider;
+    state.connector = connection.connector;
+    state.account = connection.account;
+    state.chainId = connection.chainId;
+    bindProvider(connection.provider);
+    els.connectButton.textContent = shortAddress(state.account);
+    updateQuoteButton();
+    await refreshBalance();
+    setStatus(`${connection.connector.name} reconnected. Request a fresh simulation.`);
+  } catch {
+    setStatus('Saved wallet session could not be restored. Connect again.', 'error');
   }
 }
 
@@ -205,7 +288,94 @@ async function requestQuote(event) {
   } finally { updateQuoteButton(); }
 }
 
-async function pollReceipt(transaction) {
+function journalElement(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+function formatJournalAmount(value, decimals) {
+  try { return formatUnits(String(value), decimals, 6); }
+  catch { return 'Unknown'; }
+}
+
+function renderJournal() {
+  els.journalList.replaceChildren();
+  const entries = state.journal;
+  els.journalCoverage.textContent = entries.length
+    ? `${entries.length} locally recorded execution${entries.length === 1 ? '' : 's'} · browser-local coverage`
+    : 'No locally recorded executions';
+  els.exportJournalButton.disabled = entries.length === 0;
+  els.journalEmpty.classList.toggle('hidden', entries.length > 0);
+  els.journalList.classList.toggle('hidden', entries.length === 0);
+
+  for (const entry of entries) {
+    const article = journalElement('article', 'journal-entry');
+    const head = journalElement('div', 'journal-entry-head');
+    const label = journalElement('p', 'label', entry.pair || 'ETH/USDG');
+    const link = journalElement('a', '', shortAddress(entry.hash));
+    link.href = `/receipt.html?hash=${encodeURIComponent(entry.hash)}`;
+    link.setAttribute('aria-label', `Open execution receipt ${entry.hash}`);
+    const badge = journalElement('span', `state-badge journal-entry-state ${entry.status === 'confirmed' ? 'confirmed' : entry.status === 'pending' ? 'pending' : 'failed'}`, String(entry.status || 'unknown').toUpperCase());
+    const when = journalElement('span', '', new Date(Number(entry.broadcastAt)).toLocaleString());
+    head.append(label, link, badge, when);
+
+    const evidence = journalElement('dl', 'journal-evidence');
+    const fields = [
+      ['Input', `${formatJournalAmount(entry.input, 18)} ETH`],
+      ['Expected', `${formatJournalAmount(entry.expectedOut, 6)} USDG`],
+      ['Minimum', `${formatJournalAmount(entry.minimumOut, 6)} USDG`],
+      ['Simulated block', Number.isInteger(entry.simulatedAtBlock) ? entry.simulatedAtBlock.toLocaleString() : 'Unknown'],
+      ['Receipt block', Number.isInteger(entry.receiptBlock) ? entry.receiptBlock.toLocaleString() : 'Not settled'],
+      ['Provider', entry.providerClass || 'unknown'],
+    ];
+    for (const [name, value] of fields) {
+      const row = document.createElement('div');
+      row.append(journalElement('dt', '', name), journalElement('dd', '', value));
+      evidence.append(row);
+    }
+    article.append(head, evidence);
+    els.journalList.append(article);
+  }
+}
+
+function persistJournalBroadcast(hash, quote, broadcastAt) {
+  try {
+    const entry = createJournalEntry({ hash, quote, now: broadcastAt });
+    state.journal = mergeJournalEntry(state.journal, entry);
+    saveJournal(state.journal);
+    renderJournal();
+  } catch {
+    setStatus('Transaction broadcast, but its local evidence journal could not be created. Receipt tracking continues.', 'error');
+  }
+}
+
+function persistJournalReceipt(hash, receipt) {
+  const current = state.journal.find((entry) => entry.hash.toLowerCase() === hash.toLowerCase());
+  if (!current) return;
+  state.journal = mergeJournalEntry(state.journal, updateJournalReceipt(current, receipt));
+  saveJournal(state.journal);
+  renderJournal();
+}
+
+function exportJournal() {
+  const payload = {
+    schema: 'verity.execution-journal.v1',
+    coverage: 'browser_local_only',
+    chainId: CHAIN.id,
+    exportedAt: new Date().toISOString(),
+    entries: state.journal,
+  };
+  const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `verity-execution-journal-${new Date().toISOString().slice(0, 10)}.json`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+async function pollReceipt(transaction, evidenceQuote = null) {
   for (let attempt = 0; attempt < 60; attempt += 1) {
     await new Promise((resolve) => setTimeout(resolve, 3000));
     if (state.activeTx?.hash !== transaction.hash) return;
@@ -224,6 +394,11 @@ async function pollReceipt(transaction) {
         setTxState('unknown');
         setStatus('Receipt status is unknown. The hash is not treated as success.', 'error');
       }
+      if (evidenceQuote && ['confirmed', 'reverted'].includes(receipt.status)
+        && !state.journal.some((entry) => entry.hash.toLowerCase() === transaction.hash.toLowerCase())) {
+        persistJournalBroadcast(transaction.hash, evidenceQuote, transaction.broadcastAt);
+      }
+      persistJournalReceipt(transaction.hash, receipt);
       state.activeTx = null;
       try { localStorage.removeItem('verity.activeTx'); } catch { /* storage is best-effort */ }
       return;
@@ -234,6 +409,7 @@ async function pollReceipt(transaction) {
     try { localStorage.setItem('verity.activeTx', JSON.stringify(state.activeTx)); } catch { /* storage is best-effort */ }
     setTxState('unknown');
     setStatus('Receipt is still unknown. The hash is preserved and is not treated as success.', 'error');
+    persistJournalReceipt(transaction.hash, { status: 'unknown', blockNumber: null });
   }
 }
 
@@ -266,16 +442,33 @@ async function executeQuote() {
         setStatus('Wallet context or quote freshness changed. Simulate again.', 'error');
         return;
       }
+      const signatureContext = walletContextGuard.snapshot();
       setTxState('awaiting_signature');
       setStatus('Review the wallet prompt. Verity cannot sign for you.');
-      const hash = await provider.request({ method: 'eth_sendTransaction', params: [toRpcTransaction(quote)] });
+      const hash = await provider.request({ method: 'eth_sendTransaction', params: [toRpcTransaction(quote, CHAIN.id)] });
       if (!/^0x[0-9a-f]{64}$/i.test(hash || '')) throw new Error('transaction_hash_invalid');
-      const transaction = { hash, chainId: CHAIN.id, status: 'pending', broadcastAt: Date.now() };
+      const contextStable = walletContextGuard.isCurrent(signatureContext)
+        && provider === state.provider
+        && account?.toLowerCase() === state.account?.toLowerCase()
+        && state.chainId === CHAIN.id;
+      const transaction = {
+        hash,
+        chainId: CHAIN.id,
+        status: contextStable ? 'pending' : 'unknown',
+        broadcastAt: Date.now(),
+        walletContextChanged: !contextStable,
+      };
       persistActiveTransaction(transaction);
+      if (contextStable) persistJournalBroadcast(hash, quote, transaction.broadcastAt);
       state.quote = null;
-      setTxState('pending');
-      setStatus('Transaction broadcast. Waiting for a chain-pinned receipt—not assuming success.');
-      pollReceipt(transaction);
+      if (contextStable) {
+        setTxState('pending');
+        setStatus('Transaction broadcast. Waiting for a chain-pinned receipt—not assuming success.');
+      } else {
+        setTxState('unknown');
+        setStatus('A hash returned after the wallet context changed. Chain 4663 settlement is unverified; checking the pinned receipt endpoint.', 'error');
+      }
+      pollReceipt(transaction, contextStable ? null : quote);
     } catch (error) {
       setTxState(error?.code === 4001 ? 'signature_rejected' : 'unknown');
       setStatus(error?.code === 4001 ? 'Signature rejected. Nothing was broadcast.' : 'Wallet submission failed or is unknown. Check your wallet activity.', 'error');
@@ -331,27 +524,26 @@ window.addEventListener('scroll', () => {
   });
 }, { passive: true });
 
-window.addEventListener('eip6963:announceProvider', (event) => {
-  if (!state.providers.some((item) => item.info.uuid === event.detail.info.uuid)) state.providers.push(event.detail);
-});
-window.dispatchEvent(new Event('eip6963:requestProvider'));
-if (window.ethereum) state.providers.push({ info: { uuid: 'legacy', name: 'Browser wallet' }, provider: window.ethereum });
-
-els.closeWalletDialog.addEventListener('click', () => {
-  if (typeof els.walletDialog.close === 'function') els.walletDialog.close();
-  else els.walletDialog.removeAttribute('open');
-});
+els.closeWalletDialog.addEventListener('click', closeWalletDialog);
 els.walletDialog.addEventListener('click', (event) => {
-  if (event.target !== els.walletDialog) return;
-  if (typeof els.walletDialog.close === 'function') els.walletDialog.close();
-  else els.walletDialog.removeAttribute('open');
+  if (event.target === els.walletDialog) closeWalletDialog();
 });
-els.connectButton.addEventListener('click', connectWallet);
+els.walletOptions.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-connector-uid]');
+  if (button) connectWallet(button.dataset.connectorUid);
+});
+els.connectButton.addEventListener('click', openWalletChooser);
+watchWalletConnectors((options) => {
+  if (els.walletDialog.open) renderWalletOptions(options);
+});
 els.quoteForm.addEventListener('submit', requestQuote);
 els.reviewCheck.addEventListener('change', updateExpiry);
 els.executeButton.addEventListener('click', executeQuote);
+els.exportJournalButton.addEventListener('click', exportJournal);
 setInterval(updateExpiry, 1000);
 setInterval(checkHealth, 30_000);
 restoreActiveTransaction();
+renderJournal();
 checkHealth();
 updateQuoteButton();
+restoreWalletConnection();

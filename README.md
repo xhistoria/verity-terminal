@@ -4,13 +4,16 @@ A constrained, non-custodial execution terminal for Robinhood Chain.
 
 ## Current public-beta scope
 
-- Connect an EIP-1193/EIP-6963 browser wallet.
+- Discover Rabby, MetaMask, and other injected wallets through Wagmi Core plus EIP-6963/EIP-1193.
+- Offer WalletConnect QR/mobile pairing when `REOWN_PROJECT_ID` is configured for the deployment.
 - Add or switch to Robinhood Chain (`4663`).
 - Read the connected ETH balance.
 - Simulate a bounded ETH → USDG trade through one pinned Uniswap V3 pool.
 - Show expected output, minimum output, gas, router, pool fee, and quote expiry.
 - Sign and broadcast only from the user's wallet.
 - Track the receipt; a transaction hash is never labelled success.
+- Keep a bounded, browser-local execution journal with JSON export and shareable public receipt checks.
+- Publish the security, wallet, lifecycle, contracts, API, and limitation documentation at `/docs.html`.
 
 The server does **not** receive private keys, sign transactions, or broadcast for users.
 
@@ -46,6 +49,19 @@ Cloudflare compatibility check:
 
 ```bash
 npx wrangler deploy --dry-run
+```
+
+Optional WalletConnect mobile/QR support requires a Reown Project ID. Configure it directly in the hosting environment and restrict its allowed origin to the canonical Verity domain. It is browser-visible configuration, not a wallet signing secret.
+
+```bash
+# Vercel: configure as a Production build environment variable.
+vercel env add REOWN_PROJECT_ID production
+
+# Cloudflare: configure REOWN_PROJECT_ID in Workers Builds / CI,
+# then build before deployment. A runtime Wrangler secret will not
+# modify an already compiled browser bundle.
+npm run build
+npx wrangler deploy
 ```
 
 Optional authenticated RPC secrets are set interactively, never committed or sent through chat:

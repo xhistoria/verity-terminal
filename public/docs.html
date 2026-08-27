@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="description" content="Verity Terminal documentation: wallet support, execution lifecycle, security boundaries, receipts, and API reference.">
+  <title>Documentation — Verity Terminal</title>
+  <link rel="icon" href="/verity-icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body class="docs-page">
+  <a class="skip-link" href="#docsContent">Skip to documentation</a>
+  <header class="nav floating-nav is-scrolled">
+    <a class="brand" href="/" aria-label="Verity home">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M7 8.5 16 25 25 8.5h-5.2L16 16l-3.8-7.5H7Z" fill="currentColor"/></svg>
+      <span>VERITY</span>
+    </a>
+    <nav class="nav-links" aria-label="Documentation navigation">
+      <a href="/">Terminal</a>
+      <a href="#wallets">Wallets</a>
+      <a href="#security-boundary">Security</a>
+      <a href="#api-reference">API</a>
+    </nav>
+    <a class="button secondary" href="/">Open terminal</a>
+  </header>
+
+  <main class="docs-shell" id="docsContent">
+    <section class="docs-hero">
+      <p class="eyebrow">VERITY DOCUMENTATION · PUBLIC BETA</p>
+      <h1>Execution boundaries,<br><span>documented in public.</span></h1>
+      <p class="hero-copy">Verity is a constrained, non-custodial execution terminal for one Robinhood Chain route. These docs separate implemented behavior, deployment configuration, and capabilities that remain unverified.</p>
+      <div class="docs-status-grid">
+        <div><span>Chain</span><strong>Robinhood Chain · 4663</strong></div>
+        <div><span>Execution route</span><strong>ETH → USDG</strong></div>
+        <div><span>Signing</span><strong>Local wallet only</strong></div>
+        <div><span>Mainnet canary</span><strong>Not yet receipt-verified</strong></div>
+      </div>
+    </section>
+
+    <div class="docs-layout">
+      <aside class="docs-toc" aria-label="On this page">
+        <strong>On this page</strong>
+        <a href="#quick-start">Quick start</a>
+        <a href="#wallets">Wallet support</a>
+        <a href="#execution-lifecycle">Execution lifecycle</a>
+        <a href="#security-boundary">Security boundary</a>
+        <a href="#receipts">Receipt journal</a>
+        <a href="#contracts">Pinned contracts</a>
+        <a href="#api-reference">API reference</a>
+        <a href="#limitations">Limitations</a>
+      </aside>
+
+      <article class="docs-content">
+        <section id="quick-start">
+          <p class="label">01 · QUICK START</p>
+          <h2>Connect, simulate, inspect, sign.</h2>
+          <ol class="docs-steps">
+            <li><strong>Open the wallet chooser.</strong><span>Select a discovered browser wallet or WalletConnect when configured.</span></li>
+            <li><strong>Switch to Robinhood Chain.</strong><span>Verity requests chain ID 4663 and checks it again before signing.</span></li>
+            <li><strong>Request a simulation.</strong><span>The server quotes only the pinned ETH → USDG path and never broadcasts.</span></li>
+            <li><strong>Review every field.</strong><span>Recipient, router, value, minimum output, fee tier, gas, deadline, block, and calldata remain visible.</span></li>
+            <li><strong>Approve in your wallet.</strong><span>Your wallet is the only signer. A transaction hash means broadcast, not success.</span></li>
+          </ol>
+        </section>
+
+        <section id="wallets">
+          <p class="label">02 · WALLET SUPPORT</p>
+          <h2>Multiple connectors, one custody boundary.</h2>
+          <div class="docs-table-wrap" tabindex="0" aria-label="Wallet compatibility table">
+            <table>
+              <thead><tr><th>Wallet path</th><th>Method</th><th>Deployment state</th></tr></thead>
+              <tbody>
+                <tr><td>Rabby desktop</td><td>EIP-6963 / injected EIP-1193</td><td>Implemented</td></tr>
+                <tr><td>MetaMask desktop</td><td>EIP-6963 / injected EIP-1193</td><td>Implemented</td></tr>
+                <tr><td>Other compatible extensions</td><td>Wagmi multi-provider discovery</td><td>Implemented</td></tr>
+                <tr><td>Mobile and QR pairing</td><td>WalletConnect</td><td>Requires Reown Project ID in deployment</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="docs-callout"><strong>Configuration truth</strong><p>The terminal reports whether WalletConnect is configured. The Reown Project ID is injected at browser-bundle build time—not through a runtime Worker secret. A compiled connector is not presented as live mobile support until a deployment Project ID, canonical-domain allowlist, and real pairing test are complete.</p></div>
+        </section>
+
+        <section id="execution-lifecycle">
+          <p class="label">03 · EXECUTION LIFECYCLE</p>
+          <h2>Every state remains distinct.</h2>
+          <pre class="docs-flow"><code>intent
+→ quote
+→ exact on-chain simulation
+→ user review
+→ local wallet signature
+→ broadcast
+→ pending
+→ receipt-confirmed | reverted | unknown</code></pre>
+          <p>Account, chain, provider, or quote freshness changes invalidate the prepared execution. A transaction hash is not success. Verity requires a successful Robinhood Chain receipt before showing <code>confirmed</code>.</p>
+        </section>
+
+        <section id="security-boundary">
+          <p class="label">04 · SECURITY BOUNDARY</p>
+          <h2>Fail closed before the wallet prompt.</h2>
+          <div class="docs-grid">
+            <div><strong>No key custody</strong><p>No seed phrase, private key, server signer, relayer signer, or recovery credential.</p></div>
+            <div><strong>Pinned route</strong><p>One router, pair, pool, fee tier, recipient policy, and native value relationship.</p></div>
+            <div><strong>Calldata verification</strong><p>The browser ABI-decodes and canonically re-encodes the outer multicall and nested exactInputSingle call.</p></div>
+            <div><strong>Bounded intent</strong><p>Maximum 1 ETH, slippage 0.10–5.00%, short quote lifetime, and on-chain deadline.</p></div>
+            <div><strong>Single flight</strong><p>A synchronous execution lock prevents duplicate wallet submission prompts.</p></div>
+            <div><strong>Settlement truth</strong><p>Pending, confirmed, reverted, and unknown are never collapsed into one success state.</p></div>
+          </div>
+        </section>
+
+        <section id="receipts">
+          <p class="label">05 · RECEIPT JOURNAL</p>
+          <h2>Evidence retained in your browser.</h2>
+          <p>The execution journal begins only after a wallet returns a canonical transaction hash. It records quote evidence, broadcast time, provider class, simulated block, and later receipt state.</p>
+          <ul>
+            <li>Coverage is explicitly <strong>browser-local</strong>, capped at 50 entries.</li>
+            <li>Reloading the same browser preserves the journal best-effort.</li>
+            <li>JSON export is available from the terminal.</li>
+            <li>A shareable receipt URL verifies the public transaction hash through the chain-pinned receipt API.</li>
+            <li>Local storage is not a durable multi-device database and must not be treated as one.</li>
+          </ul>
+        </section>
+
+        <section id="contracts">
+          <p class="label">06 · PINNED CONTRACTS</p>
+          <h2>Versioned execution allowlist.</h2>
+          <dl class="docs-addresses">
+            <div><dt>SwapRouter02</dt><dd><code>0xCaf681a66D020601342297493863E78C959E5cb2</code></dd></div>
+            <div><dt>WETH</dt><dd><code>0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73</code></dd></div>
+            <div><dt>USDG</dt><dd><code>0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168</code></dd></div>
+            <div><dt>V3 pool · 0.01%</dt><dd><code>0x52e65B17fB6E5BA00Ed806f37Afcd2DaA50271Ca</code></dd></div>
+            <div><dt>QuoterV2</dt><dd><code>0x33e885eD0Ec9bF04EcfB19341582aADCb4c8A9E7</code></dd></div>
+          </dl>
+        </section>
+
+        <section id="api-reference">
+          <p class="label">07 · API REFERENCE</p>
+          <h2>Same-origin, no-store endpoints.</h2>
+          <div class="docs-api-list">
+            <div><code>GET /api/health</code><p>Chain/provider status and non-custodial execution scope.</p></div>
+            <div><code>GET /api/config</code><p>Pinned chain, token, router, pool, fee, and input constraints.</p></div>
+            <div><code>POST /api/quote</code><p>Fresh constrained quote, simulation evidence, gas estimate, and exact calldata. Never broadcasts.</p></div>
+            <div><code>GET /api/receipt?hash=0x…</code><p>Returns pending, confirmed, reverted, unknown, or provider-unavailable truth.</p></div>
+          </div>
+          <p>Unsupported methods fail with <code>405</code>. Provider failure returns an explicit unavailable/error state instead of fabricated values.</p>
+        </section>
+
+        <section id="limitations">
+          <p class="label">08 · LIMITATIONS</p>
+          <h2>What Verity does not claim.</h2>
+          <ul>
+            <li>The public Robinhood RPC is rate-limited and is not sufficient as the sole provider for broad launch.</li>
+            <li>The current API limiter is per warm runtime instance, not distributed global WAF enforcement.</li>
+            <li>Simulation is expected behavior at a specific chain state, not a guarantee.</li>
+            <li>A successful chain receipt is not a claim of full Ethereum finality.</li>
+            <li>Replacement and reorg handling remain incomplete.</li>
+            <li>The mainnet execution loop is not marked verified until a user-approved small transaction receives a successful receipt.</li>
+            <li>Stock Token/RWA execution, unattended copytrading, server-held session keys, and global-jurisdiction claims are excluded.</li>
+          </ul>
+        </section>
+      </article>
+    </div>
+  </main>
+
+  <footer class="footer-wrap docs-footer">
+    <div class="footer-panel">
+      <div><p class="eyebrow">VERIFY, THEN TRUST</p><h2>Source, boundaries,<br>and settlement truth.</h2></div>
+      <div class="footer-meta"><a href="https://github.com/xhistoria/verity-terminal" target="_blank" rel="noopener noreferrer">GitHub source</a><a href="/">Open terminal</a><span>Independent software</span></div>
+    </div>
+  </footer>
+</body>
+</html>

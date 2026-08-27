@@ -67,9 +67,15 @@ export function isQuoteExecutable(quote, context) {
 }
 
 export function walletConnectionGuidance(error) {
-  if (error?.code === 4001) return 'Wallet connection rejected.';
-  if (error?.message === 'wallet_not_found') {
-    return 'No compatible wallet was detected. Open Verity inside your wallet browser or use a desktop browser with an injected wallet extension. WalletConnect is not available yet.';
+  const code = error?.code ?? error?.cause?.code;
+  const name = error?.name || error?.cause?.name;
+  const message = error?.message || error?.cause?.message;
+  if (code === 4001 || name === 'UserRejectedRequestError') return 'Wallet connection rejected.';
+  if (message === 'wallet_connector_unavailable') {
+    return 'That wallet connector is no longer available. Reopen the chooser and select an active wallet.';
+  }
+  if (message === 'wallet_not_found') {
+    return 'No compatible wallet was detected. Open Verity inside your wallet browser or use a desktop browser with an injected wallet extension. WalletConnect availability depends on deployment configuration.';
   }
   return 'Unable to connect a compatible EIP-1193 wallet. Check that the wallet is unlocked, then try again.';
 }
@@ -92,12 +98,23 @@ export function createExecutionLock() {
   });
 }
 
-export function toRpcTransaction(quote) {
+export function createWalletContextGuard() {
+  let revision = 0;
+  return Object.freeze({
+    snapshot: () => revision,
+    invalidate: () => { revision += 1; return revision; },
+    isCurrent: (snapshot) => Number.isInteger(snapshot) && snapshot === revision,
+  });
+}
+
+export function toRpcTransaction(quote, chainId) {
+  if (!Number.isInteger(chainId) || chainId <= 0) throw new Error('wallet_chain_invalid');
   return {
     from: quote.from,
     to: quote.to,
     value: `0x${BigInt(quote.value).toString(16)}`,
     data: quote.data,
+    chainId: `0x${chainId.toString(16)}`,
   };
 }
 

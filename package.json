@@ -12,7 +12,13 @@
     "deploy:vercel": "vercel deploy --yes --project verity-terminal --prod"
   },
   "dependencies": {
-    "viem": "^2.37.0"
+    "@wagmi/connectors": "^8.1.0",
+    "@wagmi/core": "^3.6.4",
+    "@walletconnect/ethereum-provider": "^2.23.10",
+    "viem": "^2.56.0"
+  },
+  "overrides": {
+    "axios": "1.18.0"
   },
   "devDependencies": {
     "esbuild": "^0.25.12",

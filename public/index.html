@@ -6,6 +6,7 @@
   <meta name="color-scheme" content="dark">
   <meta name="description" content="Non-custodial execution terminal for bounded Robinhood Chain trades.">
   <title>Verity — Execution with evidence</title>
+  <link rel="icon" href="/verity-icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
@@ -20,7 +21,8 @@
     </a>
     <nav class="nav-links" aria-label="Primary navigation">
       <a href="#trade">Execute</a>
-      <a href="#safety">Safety</a>
+      <a href="#journal">Journal</a>
+      <a href="/docs.html">Docs</a>
     </nav>
     <div class="nav-actions">
       <div class="network-state" id="networkState"><span class="dot" aria-hidden="true"></span><span>Checking chain</span></div>
@@ -31,17 +33,15 @@
   <dialog class="wallet-dialog" id="walletDialog" aria-labelledby="walletDialogTitle" aria-describedby="walletDialogMessage">
     <div class="wallet-dialog-card">
       <p class="label">WALLET CONNECTION</p>
-      <h2 id="walletDialogTitle">Wallet needs a compatible browser</h2>
-      <p id="walletDialogMessage">No compatible wallet was detected.</p>
-      <div class="wallet-support-note">
-        <strong>Supported now</strong>
-        <span>EIP-6963 and injected EIP-1193 browser wallets.</span>
+      <h2 id="walletDialogTitle">Choose a wallet</h2>
+      <p id="walletDialogMessage">Select an available injected wallet or connect from mobile with WalletConnect.</p>
+      <div class="wallet-options" id="walletOptions" role="list"></div>
+      <div class="wallet-support-note" id="walletSetupNote">
+        <strong>WalletConnect configuration</strong>
+        <span id="walletConnectState">Checking deployment configuration…</span>
       </div>
-      <div class="wallet-support-note">
-        <strong>Not available yet</strong>
-        <span>WalletConnect from ordinary mobile Chrome, Safari, or Telegram's in-app browser.</span>
-      </div>
-      <button class="button primary wide" id="closeWalletDialog" type="button">Close</button>
+      <p class="wallet-privacy">Verity never receives your seed phrase or private key. Connection does not authorize a trade.</p>
+      <button class="button secondary wide" id="closeWalletDialog" type="button">Cancel</button>
     </div>
   </dialog>
 
@@ -153,6 +153,23 @@
       </div>
     </section>
 
+    <section class="journal shell" id="journal" aria-labelledby="journalTitle">
+      <div class="section-heading animate">
+        <p class="eyebrow">LOCAL EXECUTION EVIDENCE</p>
+        <h2 id="journalTitle">Receipts, not claims.</h2>
+        <p>Verity stores a bounded journal in this browser after broadcast. It records expected execution evidence and updates only from Robinhood Chain receipts.</p>
+      </div>
+      <div class="journal-toolbar">
+        <span id="journalCoverage">No locally recorded executions</span>
+        <button class="button secondary" id="exportJournalButton" type="button" disabled>Export JSON</button>
+      </div>
+      <div class="journal-empty" id="journalEmpty">
+        <strong>No execution receipts yet</strong>
+        <span>A simulation is not an execution. Entries appear only after your wallet returns a transaction hash.</span>
+      </div>
+      <div class="journal-list hidden" id="journalList" aria-live="polite"></div>
+    </section>
+
     <section class="scope-note shell animate">
       <span>CONSTRAINED PREVIEW SCOPE</span>
       <p>This release intentionally excludes unattended copytrading, server-held keys, token launches, and Stock Token/RWA execution. Start small and verify every wallet prompt.</p>
@@ -165,7 +182,7 @@
         <p class="eyebrow">VERITY TERMINAL</p>
         <h2>Understand first.<br>Verify settlement.</h2>
       </div>
-      <div class="footer-meta"><span>INDEPENDENT SOFTWARE</span><span>Not affiliated with Robinhood or Uniswap</span></div>
+      <div class="footer-meta"><span>INDEPENDENT SOFTWARE</span><a href="/docs.html">Documentation</a><span>Not affiliated with Robinhood or Uniswap</span></div>
     </div>
   </footer>
 

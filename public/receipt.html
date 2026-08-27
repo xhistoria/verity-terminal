@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="description" content="Verify a Verity execution receipt on Robinhood Chain.">
+  <title>Execution Receipt — Verity Terminal</title>
+  <link rel="icon" href="/verity-icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body class="receipt-page">
+  <a class="skip-link" href="#receiptContent">Skip to receipt</a>
+  <header class="nav floating-nav is-scrolled">
+    <a class="brand" href="/" aria-label="Verity home">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M7 8.5 16 25 25 8.5h-5.2L16 16l-3.8-7.5H7Z" fill="currentColor"/></svg>
+      <span>VERITY</span>
+    </a>
+    <nav class="nav-links" aria-label="Receipt navigation"><a href="/">Terminal</a><a href="/docs.html#receipts">Receipt docs</a></nav>
+    <a class="button secondary" href="/">Open terminal</a>
+  </header>
+
+  <main class="receipt-shell" id="receiptContent">
+    <section class="receipt-card">
+      <p class="eyebrow">ROBINHOOD CHAIN · PUBLIC RECEIPT CHECK</p>
+      <div class="receipt-heading">
+        <h1>Execution receipt.</h1>
+        <span class="state-badge" id="receiptStatus">CHECKING</span>
+      </div>
+      <p id="receiptMessage" role="status" aria-live="polite">Reading the chain-pinned receipt endpoint.</p>
+      <dl class="receipt-evidence">
+        <div><dt>Transaction hash</dt><dd><code id="receiptHash">—</code></dd></div>
+        <div><dt>Chain</dt><dd>Robinhood Chain · 4663</dd></div>
+        <div><dt>Receipt block</dt><dd id="receiptBlock">—</dd></div>
+        <div><dt>Evidence source</dt><dd>Chain-pinned receipt API</dd></div>
+      </dl>
+      <div class="receipt-actions">
+        <a class="button primary" id="receiptExplorer" target="_blank" rel="noopener noreferrer">Open explorer</a>
+        <button class="button secondary" id="refreshReceipt" type="button">Refresh status</button>
+      </div>
+      <div class="docs-callout">
+        <strong>Verification boundary</strong>
+        <p>This page verifies the public transaction hash and receipt state. It does not prove who initiated the transaction, embed private wallet data, or claim full Ethereum finality.</p>
+      </div>
+    </section>
+  </main>
+  <script type="module" src="/receipt.js"></script>
+</body>
+</html>

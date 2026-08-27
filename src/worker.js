@@ -2,6 +2,8 @@ import { CHAIN, CONTRACTS, TOKENS } from './config.js';
 import { createBuyQuote, EXECUTION_POLICY } from './quote.js';
 import { estimateTransactionGas, probeChain, readTransactionReceipt, simulateBuyOnchain } from './onchain.js';
 
+const WALLET_CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' https://fonts.reown.com; connect-src 'self' https://rpc.mainnet.chain.robinhood.com https://rpc.walletconnect.com https://rpc.walletconnect.org https://relay.walletconnect.com https://relay.walletconnect.org wss://relay.walletconnect.com wss://relay.walletconnect.org https://pulse.walletconnect.com https://pulse.walletconnect.org https://api.web3modal.com https://api.web3modal.org https://explorer-api.walletconnect.com https://keys.walletconnect.com https://keys.walletconnect.org; img-src 'self' data: blob: https:; frame-src 'self' https://verify.walletconnect.com https://verify.walletconnect.org https://secure.walletconnect.com https://secure.walletconnect.org; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
+
 const JSON_HEADERS = Object.freeze({
   'content-type': 'application/json; charset=utf-8',
   'cache-control': 'no-store',
@@ -156,13 +158,13 @@ export function createApp(overrides = {}, env = {}, options = {}) {
       if (!env.ASSETS) return new Response('Not found', { status: 404 });
       const asset = await env.ASSETS.fetch(request);
       const response = new Response(asset.body, asset);
-      response.headers.set('content-security-policy', "default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; connect-src 'self'; img-src 'self' data:; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
+      response.headers.set('content-security-policy', WALLET_CSP);
       response.headers.set('x-frame-options', 'DENY');
       response.headers.set('x-content-type-options', 'nosniff');
       response.headers.set('referrer-policy', 'no-referrer');
       response.headers.set('permissions-policy', 'camera=(), microphone=(), geolocation=(), payment=()');
       response.headers.set('strict-transport-security', 'max-age=63072000; includeSubDomains; preload');
-      response.headers.set('cross-origin-opener-policy', 'same-origin');
+      response.headers.set('cross-origin-opener-policy', 'same-origin-allow-popups');
       response.headers.set('cross-origin-resource-policy', 'same-origin');
       return response;
     },
