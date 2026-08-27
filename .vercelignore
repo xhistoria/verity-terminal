@@ -1,0 +1,10 @@
+RESEARCH.md
+THESIS.md
+DECISIONS.md
+NEXT.md
+test/
+coverage/
+.wrangler/
+.dev.vars
+.env*
+*.log
