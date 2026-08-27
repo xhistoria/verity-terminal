@@ -8,15 +8,30 @@ import {
   watchWalletConnectors,
 } from './wallet-runtime.js';
 
+const MARKET_PAGE_SIZE = 48;
+
 const els = Object.fromEntries([
   'networkState','connectButton','quoteForm','amount','slippage','quoteButton','balanceText','expectedOut',
   'quoteSource','inlineStatus','txState','emptyReview','reviewContent','reviewExpected','reviewMinimum',
-  'reviewRecipient','reviewValue','reviewGas','reviewBlock','reviewDeadline','reviewCalldata','routerLink','quoteExpiry',
+  'reviewRecipient','reviewValue','reviewProtocol','reviewPool','reviewGas','reviewBlock','reviewDeadline','reviewCalldata','routerLink','quoteExpiry',
   'reviewCheck','executeButton','receiptLink','walletDialog','walletDialogTitle','walletDialogMessage','walletOptions',
   'walletSetupNote','walletConnectState','closeWalletDialog','journalCoverage','exportJournalButton','journalEmpty','journalList',
+  'marketSearch','marketFilters','marketGrid','marketCoverage','marketSummary','marketLoadMore',
 ].map((id) => [id, document.getElementById(id)]));
 
-const state = { provider: null, connector: null, account: null, chainId: null, quote: null, activeTx: null, quoteRequest: 0, journal: loadJournal() };
+const state = {
+  provider: null,
+  connector: null,
+  account: null,
+  chainId: null,
+  quote: null,
+  activeTx: null,
+  quoteRequest: 0,
+  journal: loadJournal(),
+  markets: [],
+  marketFilter: 'all',
+  marketLimit: MARKET_PAGE_SIZE,
+};
 const executionLock = createExecutionLock();
 const walletContextGuard = createWalletContextGuard();
 const boundProviders = new WeakSet();
@@ -233,6 +248,9 @@ function renderQuote(quote) {
   els.reviewMinimum.textContent = minimum;
   els.reviewRecipient.textContent = shortAddress(quote.from);
   els.reviewValue.textContent = `${formatUnits(quote.value, 18, 6)} ETH`;
+  els.reviewProtocol.textContent = `Uniswap v4 · Universal Router ${quote.routerVersion}`;
+  els.reviewPool.textContent = `${quote.pool.slice(0, 10)}…${quote.pool.slice(-8)}`;
+  els.reviewPool.title = quote.pool;
   els.reviewGas.textContent = Number(quote.gasEstimate).toLocaleString();
   els.reviewBlock.textContent = quote.simulatedAtBlock?.toLocaleString() || 'Unknown';
   els.reviewDeadline.textContent = new Date(quote.deadline * 1000).toISOString().slice(11, 19) + ' UTC';
@@ -288,6 +306,223 @@ async function requestQuote(event) {
   } finally { updateQuoteButton(); }
 }
 
+function marketReason(reason) {
+  if (reason === 'pool_key_unverified') return 'PoolKey not reconciled';
+  if (reason === 'hook_not_allowlisted') return 'Unverified hook';
+  if (reason === 'market_not_fully_validated') return 'Registry, token, and liquidity checks pending';
+  return reason ? 'Execution blocked' : 'Adapter verification pending';
+}
+
+function marketMatchesFilter(market) {
+  if (state.marketFilter === 'candidate') return market.execution?.status?.startsWith('candidate_');
+  if (state.marketFilter === 'hookless') return market.execution?.adapter === 'hookless-v1';
+  if (state.marketFilter === 'blocked') return market.execution?.status === 'blocked';
+  return true;
+}
+
+function marketMatchesSearch(market, query) {
+  if (!query) return true;
+  return [market.name, market.symbol, market.tokenAddress, market.poolId, market.sourceId, market.kind]
+    .filter(Boolean)
+    .some((value) => String(value).toLowerCase().includes(query));
+}
+
+function renderMarketCatalog() {
+  const query = els.marketSearch.value.trim().toLowerCase();
+  const filtered = state.markets.filter((market) => marketMatchesFilter(market) && marketMatchesSearch(market, query));
+  const visible = filtered.slice(0, state.marketLimit);
+  els.marketGrid.replaceChildren();
+  els.marketGrid.setAttribute('aria-busy', 'false');
+  els.marketSummary.textContent = `${visible.length.toLocaleString()} of ${filtered.length.toLocaleString()} matching · ${state.markets.length.toLocaleString()} discovered identities`;
+  els.marketLoadMore.classList.toggle('hidden', visible.length >= filtered.length);
+  els.marketLoadMore.textContent = `Show ${Math.min(MARKET_PAGE_SIZE, Math.max(0, filtered.length - visible.length)).toLocaleString()} more markets`;
+
+  if (visible.length === 0) {
+    const empty = document.createElement('article');
+    empty.className = 'market-empty';
+    empty.append(journalElement('strong', '', 'No markets match this view'), journalElement('span', '', 'Change the search or verification filter.'));
+    els.marketGrid.append(empty);
+    return;
+  }
+
+  for (const market of visible) {
+    const card = document.createElement('article');
+    card.className = `market-card ${market.execution?.status === 'blocked' ? 'blocked' : 'candidate'}`;
+
+    const head = document.createElement('div');
+    head.className = 'market-card-head';
+    const avatar = journalElement('span', 'market-avatar', (market.symbol || market.kind || '?').slice(0, 1).toUpperCase());
+    avatar.setAttribute('aria-hidden', 'true');
+    const identity = document.createElement('div');
+    const title = journalElement('h3', '', market.symbol || market.name || (market.tokenAddress ? shortAddress(market.tokenAddress) : 'Programmable market'));
+    const subtitle = journalElement('span', '', market.name && market.symbol ? market.name : market.kind === 'classic' ? 'Classic v4 market' : 'Programmable v4 market');
+    identity.append(title, subtitle);
+    const stateChip = journalElement('span', `market-state ${market.execution?.status === 'blocked' ? 'blocked' : 'candidate'}`, market.execution?.status === 'blocked' ? 'WATCH ONLY' : 'ADAPTER CANDIDATE');
+    head.append(avatar, identity, stateChip);
+
+    const chips = document.createElement('div');
+    chips.className = 'market-chips';
+    chips.append(
+      journalElement('span', '', market.kind === 'classic' ? 'Classic' : 'Programmable'),
+      journalElement('span', '', market.execution?.adapter || 'No adapter'),
+    );
+
+    const evidence = document.createElement('dl');
+    evidence.className = 'market-evidence';
+    const rows = [
+      ['Pool evidence', market.evidence?.poolManagerInitialize ? 'Initialize verified' : 'Unavailable'],
+      ['Pool ID', market.poolId ? shortAddress(market.poolId) : 'Unknown'],
+      ['Execution', marketReason(market.execution?.reason)],
+    ];
+    for (const [label, value] of rows) {
+      const row = document.createElement('div');
+      row.append(journalElement('dt', '', label), journalElement('dd', '', value));
+      evidence.append(row);
+    }
+
+    let poolDetails = null;
+    if (market.poolKey) {
+      poolDetails = document.createElement('details');
+      poolDetails.className = 'market-pool-details';
+      poolDetails.append(journalElement('summary', '', 'PoolKey details'));
+      const fields = document.createElement('dl');
+      fields.className = 'market-evidence';
+      for (const [label, value] of [
+        ['currency0', market.poolKey.currency0],
+        ['currency1', market.poolKey.currency1],
+        ['fee', String(market.poolKey.fee)],
+        ['tickSpacing', String(market.poolKey.tickSpacing)],
+        ['hooks', market.poolKey.hooks],
+      ]) {
+        const row = document.createElement('div');
+        const detailValue = journalElement('dd', '', value);
+        detailValue.title = value;
+        row.append(journalElement('dt', '', label), detailValue);
+        fields.append(row);
+      }
+      poolDetails.append(fields);
+    }
+
+    const actions = document.createElement('div');
+    actions.className = 'market-card-actions';
+    const action = document.createElement('a');
+    action.className = 'market-action';
+    const sourcePath = market.kind === 'classic' && market.tokenAddress
+      ? `/tokens/${market.tokenAddress}`
+      : market.sourceId ? `/markets/${market.sourceId}` : null;
+    if (sourcePath) {
+      action.href = `https://v4.fun${sourcePath}`;
+      action.target = '_blank';
+      action.rel = 'noopener noreferrer';
+      action.textContent = 'Inspect source ↗';
+    } else {
+      action.href = market.poolId ? `${CHAIN.explorer}/search?q=${market.poolId}` : CHAIN.explorer;
+      action.target = '_blank';
+      action.rel = 'noopener noreferrer';
+      action.textContent = 'Inspect evidence ↗';
+    }
+    actions.append(action);
+
+    let probeResult = null;
+    if (market.poolKey && market.execution?.adapter) {
+      const probe = document.createElement('button');
+      probe.type = 'button';
+      probe.className = 'market-action market-probe';
+      probe.dataset.marketProbe = market.poolId;
+      probe.textContent = state.account ? 'Quote only · probe 0.001 ETH' : 'Quote only · connect to probe';
+      actions.append(probe);
+      probeResult = journalElement('div', 'market-probe-result', 'No liquidity probe requested. Execution remains blocked.');
+      probeResult.setAttribute('role', 'status');
+    }
+
+    card.append(head, chips, evidence);
+    if (poolDetails) card.append(poolDetails);
+    card.append(actions);
+    if (probeResult) card.append(probeResult);
+    els.marketGrid.append(card);
+  }
+}
+
+async function probeMarketLiquidity(button) {
+  if (!state.account) {
+    await openWalletChooser();
+    return;
+  }
+  const result = button.closest('.market-card')?.querySelector('.market-probe-result');
+  const original = button.textContent;
+  button.disabled = true;
+  button.textContent = 'Quote only · probing…';
+  if (result) result.textContent = 'Calling the pinned V4Quoter. No transaction is being prepared.';
+  try {
+    const response = await fetch('/api/market-quote', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      cache: 'no-store',
+      body: JSON.stringify({ wallet: state.account, poolId: button.dataset.marketProbe, amount: '0.001' }),
+    });
+    const quote = await response.json();
+    if (!response.ok) throw new Error(quote.error || 'quote_unavailable');
+    if (result) {
+      result.textContent = `Quote only · ${quote.expectedOut} token base units at block ${quote.simulatedAtBlock?.toLocaleString() || 'unknown'} · execution blocked: ${quote.execution.reason.replaceAll('_', ' ')}`;
+    }
+    button.textContent = 'Quote only · probe again';
+  } catch (error) {
+    if (result) {
+      const reason = error.message === 'provider_unavailable'
+        ? 'Provider unavailable; liquidity is unknown.'
+        : `Probe blocked: ${error.message.replaceAll('_', ' ')}.`;
+      result.textContent = `${reason} No transaction was prepared.`;
+    }
+    button.textContent = original;
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function renderMarketCoverage(catalog) {
+  const source = catalog.sources?.v4fun || {};
+  const coverage = catalog.coverage || {};
+  const classic = `${source.discovered?.classic ?? 0}/${source.totals?.classic ?? '?'}`;
+  const programmable = `${source.discovered?.programmable ?? 0}/${source.totals?.programmable ?? '?'}`;
+  const title = catalog.status === 'provider_unavailable' ? 'Chain coverage unavailable' : 'Market coverage loaded';
+  const detail = `v4.fun ${source.status || 'provider_unavailable'} · Classic ${classic} · Programmable ${programmable} · Blockscout ${coverage.state || 'PROVIDER_UNAVAILABLE'}`;
+  els.marketCoverage.className = `coverage-strip ${catalog.status === 'provider_unavailable' ? 'warning' : 'live'}`;
+  els.marketCoverage.replaceChildren(
+    journalElement('span', 'coverage-dot', ''),
+    journalElement('strong', '', title),
+    journalElement('span', '', detail),
+  );
+  els.marketCoverage.firstElementChild.setAttribute('aria-hidden', 'true');
+}
+
+async function loadMarkets() {
+  els.marketGrid.setAttribute('aria-busy', 'true');
+  try {
+    const response = await fetch('/api/markets', { cache: 'no-store' });
+    const catalog = await response.json();
+    if (!response.ok) throw new Error(catalog.error || 'provider_unavailable');
+    state.markets = Array.isArray(catalog.markets) ? catalog.markets : [];
+    renderMarketCoverage(catalog);
+    renderMarketCatalog();
+  } catch (error) {
+    state.markets = [];
+    els.marketCoverage.className = 'coverage-strip warning';
+    els.marketCoverage.replaceChildren(
+      journalElement('span', 'coverage-dot', ''),
+      journalElement('strong', '', 'Market providers unavailable'),
+      journalElement('span', '', 'No market is treated as executable. Retry after v4.fun or Blockscout recovers.'),
+    );
+    els.marketGrid.replaceChildren();
+    const empty = document.createElement('article');
+    empty.className = 'market-empty';
+    empty.append(journalElement('strong', '', 'Catalog unavailable'), journalElement('span', '', error.message === 'provider_unavailable' ? 'Provider unavailable; coverage is unknown.' : 'The market schema could not be verified.'));
+    els.marketGrid.append(empty);
+    els.marketGrid.setAttribute('aria-busy', 'false');
+    els.marketLoadMore.classList.add('hidden');
+    els.marketSummary.textContent = '0 shown · coverage unknown';
+  }
+}
+
 function journalElement(tag, className, text) {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -326,6 +561,8 @@ function renderJournal() {
       ['Input', `${formatJournalAmount(entry.input, 18)} ETH`],
       ['Expected', `${formatJournalAmount(entry.expectedOut, 6)} USDG`],
       ['Minimum', `${formatJournalAmount(entry.minimumOut, 6)} USDG`],
+      ['Protocol', entry.protocol === 'uniswap_v4' ? `Uniswap v4 · router ${entry.routerVersion}` : 'Legacy route'],
+      ['Hook', entry.hooks === '0x0000000000000000000000000000000000000000' ? 'None' : (entry.hooks || 'Unknown')],
       ['Simulated block', Number.isInteger(entry.simulatedAtBlock) ? entry.simulatedAtBlock.toLocaleString() : 'Unknown'],
       ['Receipt block', Number.isInteger(entry.receiptBlock) ? entry.receiptBlock.toLocaleString() : 'Not settled'],
       ['Provider', entry.providerClass || 'unknown'],
@@ -361,7 +598,7 @@ function persistJournalReceipt(hash, receipt) {
 
 function exportJournal() {
   const payload = {
-    schema: 'verity.execution-journal.v1',
+    schema: 'verity.execution-journal.v2',
     coverage: 'browser_local_only',
     chainId: CHAIN.id,
     exportedAt: new Date().toISOString(),
@@ -434,7 +671,11 @@ async function executeQuote() {
     els.executeButton.textContent = 'Wallet confirmation pending…';
     try {
       await ensureChain();
+      const currentAccounts = await provider.request({ method: 'eth_accounts' });
+      const currentAccount = currentAccounts?.[0]?.toLowerCase();
       if (provider !== state.provider
+        || currentAccount !== account?.toLowerCase()
+        || currentAccount !== state.account?.toLowerCase()
         || account?.toLowerCase() !== state.account?.toLowerCase()
         || chainId !== state.chainId
         || !isQuoteExecutable(quote, { account: state.account, chainId: state.chainId, now: Date.now() })) {
@@ -540,10 +781,33 @@ els.quoteForm.addEventListener('submit', requestQuote);
 els.reviewCheck.addEventListener('change', updateExpiry);
 els.executeButton.addEventListener('click', executeQuote);
 els.exportJournalButton.addEventListener('click', exportJournal);
+els.marketSearch.addEventListener('input', () => {
+  state.marketLimit = MARKET_PAGE_SIZE;
+  renderMarketCatalog();
+});
+els.marketFilters.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-market-filter]');
+  if (!button) return;
+  state.marketFilter = button.dataset.marketFilter;
+  state.marketLimit = MARKET_PAGE_SIZE;
+  for (const candidate of els.marketFilters.querySelectorAll('[data-market-filter]')) {
+    candidate.classList.toggle('active', candidate === button);
+  }
+  renderMarketCatalog();
+});
+els.marketLoadMore.addEventListener('click', () => {
+  state.marketLimit += MARKET_PAGE_SIZE;
+  renderMarketCatalog();
+});
+els.marketGrid.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-market-probe]');
+  if (button) probeMarketLiquidity(button);
+});
 setInterval(updateExpiry, 1000);
 setInterval(checkHealth, 30_000);
 restoreActiveTransaction();
 renderJournal();
+loadMarkets();
 checkHealth();
 updateQuoteButton();
 restoreWalletConnection();

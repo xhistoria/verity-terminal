@@ -1,14 +1,10 @@
-import { encodeFunctionData, isAddress, parseAbi, parseEther } from 'viem';
+import { isAddress, parseEther } from 'viem';
 import { CHAIN, CONTRACTS } from './config.js';
-
-const ROUTER_ABI = parseAbi([
-  'function exactInputSingle((address tokenIn,address tokenOut,uint24 fee,address recipient,uint256 amountIn,uint256 amountOutMinimum,uint160 sqrtPriceLimitX96) params) payable returns (uint256 amountOut)',
-  'function multicall(uint256 deadline,bytes[] data) payable returns (bytes[] results)',
-]);
+import { encodeV4ExactIn, V4_POLICY } from '../shared/v4-policy.js';
 
 export const EXECUTION_POLICY = Object.freeze({
-  fee: 100,
-  pool: '0x52e65B17fB6E5BA00Ed806f37Afcd2DaA50271Ca',
+  fee: V4_POLICY.poolKey.fee,
+  pool: V4_POLICY.poolId,
   minimumSlippageBps: 10,
   maximumSlippageBps: 500,
   maximumAmountWei: 10n ** 18n,
@@ -46,9 +42,9 @@ export async function createBuyQuote(input, dependencies) {
   const simulation = await simulate({
     wallet: input.wallet,
     amountIn,
-    fee: EXECUTION_POLICY.fee,
-    tokenIn: CONTRACTS.weth,
-    tokenOut: CONTRACTS.usdg,
+    poolKey: V4_POLICY.poolKey,
+    zeroForOne: true,
+    hookData: '0x',
   });
   const amountOut = typeof simulation === 'bigint' ? simulation : simulation?.amountOut;
   if (typeof amountOut !== 'bigint' || amountOut <= 0n) {
@@ -59,28 +55,16 @@ export async function createBuyQuote(input, dependencies) {
   }
 
   const minimumOut = amountOut * BigInt(10_000 - slippageBps) / 10_000n;
-  const swapData = encodeFunctionData({
-    abi: ROUTER_ABI,
-    functionName: 'exactInputSingle',
-    args: [{
-      tokenIn: CONTRACTS.weth,
-      tokenOut: CONTRACTS.usdg,
-      fee: EXECUTION_POLICY.fee,
-      recipient: input.wallet,
-      amountIn,
-      amountOutMinimum: minimumOut,
-      sqrtPriceLimitX96: 0n,
-    }],
-  });
-
+  if (minimumOut <= 0n) {
+    const error = new Error('quote_unavailable');
+    error.code = 'quote_unavailable';
+    error.status = 502;
+    throw error;
+  }
   const quotedAt = now();
   const expiresAt = quotedAt + EXECUTION_POLICY.quoteTtlMs;
   const deadline = Math.floor(expiresAt / 1000);
-  const data = encodeFunctionData({
-    abi: ROUTER_ABI,
-    functionName: 'multicall',
-    args: [BigInt(deadline), [swapData]],
-  });
+  const data = encodeV4ExactIn({ amountIn, minimumOut, deadline });
   return Object.freeze({
     status: 'quoted',
     chainId: CHAIN.id,
@@ -94,8 +78,11 @@ export async function createBuyQuote(input, dependencies) {
     expectedOut: amountOut.toString(),
     minimumOut: minimumOut.toString(),
     slippageBps,
+    protocol: V4_POLICY.protocol,
+    routerVersion: V4_POLICY.routerVersion,
     feeTier: EXECUTION_POLICY.fee,
     pool: EXECUTION_POLICY.pool,
+    hooks: V4_POLICY.poolKey.hooks,
     quotedAt,
     expiresAt,
     deadline,

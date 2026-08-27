@@ -1185,6 +1185,85 @@ p {
   overflow-wrap: anywhere;
 }
 
+.market-explorer {
+  display: grid;
+  gap: var(--space-lg);
+  padding: var(--space-block);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-surface);
+  background: var(--surface-1);
+  box-shadow: var(--shadow-panel);
+}
+
+.market-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.65fr);
+  align-items: end;
+  gap: var(--space-block);
+}
+
+.market-heading .eyebrow { margin-bottom: var(--space-sm); }
+.market-heading h2 span,
+.market-heading > p { color: var(--ink-soft); }
+.market-heading > p { max-width: 42rem; justify-self: end; }
+
+.coverage-strip {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-sm);
+  min-height: 44px;
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-chip);
+  background: var(--surface-2);
+}
+
+.coverage-strip strong { font-weight: 500; }
+.coverage-strip > span:last-child { color: var(--ink-soft); font-size: var(--text-meta); text-align: right; }
+.coverage-dot { width: var(--space-sm); height: var(--space-sm); border-radius: var(--radius-pill); background: var(--ink-muted); }
+.coverage-strip.live .coverage-dot { background: var(--accent); }
+
+.market-controls { display: flex; align-items: end; justify-content: space-between; gap: var(--space-md); }
+.market-search { display: grid; gap: var(--space-xs); width: min(100%, 34rem); color: var(--ink-muted); font-size: var(--text-label); letter-spacing: var(--tracking-label); text-transform: uppercase; }
+.market-search input { width: 100%; min-height: 44px; padding: var(--space-sm) var(--space-md); border: 1px solid var(--line-strong); border-radius: var(--radius-pill); background: var(--canvas-deep); color: var(--ink); }
+.market-search input::placeholder { color: var(--ink-muted); }
+.market-filters { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-xs); }
+.market-filter { min-height: 44px; padding: var(--space-sm) var(--space-md); border: 1px solid var(--line); border-radius: var(--radius-pill); background: var(--surface-2); color: var(--ink-soft); cursor: pointer; }
+.market-filter:hover,
+.market-filter:focus-visible,
+.market-filter.active { border-color: var(--accent); color: var(--ink); }
+.market-filter.active { background: var(--accent); color: var(--accent-ink); }
+.market-summary { color: var(--ink-muted); font-size: var(--text-meta); }
+.market-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: var(--space-md); }
+
+.market-card,
+.market-empty { display: grid; gap: var(--space-md); min-width: 0; padding: var(--space-md); border: 1px solid var(--line); border-radius: var(--radius-nested); background: var(--canvas-deep); }
+.market-card.candidate { border-color: var(--accent); }
+.market-card-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--space-sm); }
+.market-card-head h3 { overflow: hidden; font-size: var(--text-body); font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.market-card-head div > span,
+.market-empty span { color: var(--ink-muted); font-size: var(--text-meta); }
+.market-avatar { display: grid; width: var(--icon-xl); height: var(--icon-xl); place-items: center; border: 1px solid var(--line-strong); border-radius: var(--radius-pill); background: var(--surface-3); color: var(--ink); font-size: var(--text-meta); font-weight: 600; }
+.market-state,
+.market-chips span { padding: var(--space-xs) var(--space-sm); border: 1px solid var(--line); border-radius: var(--radius-pill); color: var(--ink-soft); font-size: var(--text-label); }
+.market-state.candidate { border-color: var(--accent); color: var(--accent); }
+.market-chips { display: flex; flex-wrap: wrap; gap: var(--space-xs); }
+.market-evidence { display: grid; gap: var(--space-xs); margin: 0; }
+.market-evidence div { display: flex; justify-content: space-between; gap: var(--space-sm); padding-block: var(--space-xs); border-bottom: 1px solid var(--line-hairline); }
+.market-evidence dt { color: var(--ink-muted); }
+.market-evidence dd { min-width: 0; margin: 0; overflow: hidden; color: var(--ink-soft); text-align: right; text-overflow: ellipsis; white-space: nowrap; }
+.market-pool-details { padding: var(--space-sm); border: 1px solid var(--line); border-radius: var(--radius-chip); color: var(--ink-soft); }
+.market-pool-details summary { min-height: 44px; padding: var(--space-sm); cursor: pointer; }
+.market-pool-details .market-evidence { margin-top: var(--space-sm); }
+.market-card-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--space-xs); }
+.market-probe-result { color: var(--ink-muted); font-size: var(--text-meta); line-height: var(--leading-normal); }
+.market-action { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: var(--space-sm) var(--space-md); border: 1px solid var(--line-strong); border-radius: var(--radius-pill); color: var(--ink); text-decoration: none; }
+.market-action:hover,
+.market-action:focus-visible { border-color: var(--accent); }
+.market-load-more { justify-self: center; min-height: 44px; }
+.market-empty { grid-column: 1 / -1; min-height: var(--space-section-sm); place-content: center; text-align: center; }
+
 .animate {
   opacity: 1;
   transform: none;
@@ -1197,6 +1276,7 @@ p {
 
   .hero-grid,
   .section-heading,
+  .market-heading,
   .docs-layout {
     grid-template-columns: 1fr;
   }
@@ -1298,9 +1378,27 @@ p {
 
   .journal-toolbar,
   .receipt-heading,
-  .receipt-actions {
+  .receipt-actions,
+  .market-controls {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .market-explorer {
+    padding: var(--space-md);
+  }
+
+  .coverage-strip {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .coverage-strip > span:last-child {
+    grid-column: 1 / -1;
+    text-align: left;
+  }
+
+  .market-filters {
+    justify-content: flex-start;
   }
 
   .receipt-evidence div {

@@ -17,8 +17,12 @@ test('creates bounded ETH to USDG calldata from a simulated output', async () =>
   assert.equal(quote.expectedOut, '2500000');
   assert.equal(quote.minimumOut, '2487500');
   assert.equal(quote.expiresAt, 1_060_000);
-  assert.match(quote.data, /^0x5ae401dc[0-9a-f]+$/i);
+  assert.match(quote.data, /^0x3593564c[0-9a-f]+$/i);
   assert.equal(quote.deadline, 1060);
+  assert.equal(quote.protocol, 'uniswap_v4');
+  assert.equal(quote.routerVersion, '2.1.1');
+  assert.equal(quote.pool, '0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982');
+  assert.equal(quote.hooks, '0x0000000000000000000000000000000000000000');
   assert.equal(quote.simulatedAtBlock, 47_000_000);
   assert.equal(quote.providerClass, 'public_rpc');
   assert.equal(quote.status, 'quoted');
@@ -48,6 +52,16 @@ test('fails closed when simulation returns no output', async () => {
     createBuyQuote(
       { wallet, amount: '0.001', slippageBps: 50 },
       { simulate: async () => 0n },
+    ),
+    /quote_unavailable/,
+  );
+});
+
+test('fails closed when slippage flooring would remove output protection', async () => {
+  await assert.rejects(
+    createBuyQuote(
+      { wallet, amount: '1', slippageBps: 500 },
+      { simulate: async () => 1n, now: () => 1_000_000 },
     ),
     /quote_unavailable/,
   );

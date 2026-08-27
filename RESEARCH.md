@@ -1,8 +1,8 @@
 # Robinhood Chain Execution Terminal — Research Decision
 
 **Date:** 2026-08-27
-**Status:** Feasibility validated; implementation should begin with a constrained testnet/mainnet spike.
-**Boundary:** Standalone product. Vaultra checkout was removed locally; GitHub and Vercel remain untouched.
+**Status:** Constrained Uniswap v4 implementation and live quote/full simulation verified; user-approved broadcast and settlement remain unverified.
+**Boundary:** Standalone product. Runtime release state, live simulation, and receipt evidence are reported separately.
 
 ## Decision
 
@@ -15,6 +15,14 @@ Build a **non-custodial social execution terminal** for Robinhood Chain, not a g
 The product combines discovery, explainable evidence, quote/simulation, local wallet signing, and settlement receipts. Every trade starts as a user-confirmed action. Unattended policy-limited automation is an expansion feature only after security and execution-quality evidence.
 
 ## What is verified
+
+### Uniswap v4 implementation addendum
+
+The execution implementation now pins the Robinhood Chain Universal Router v2.1.1 (`0x06afBA43fd06227fA663b0dAeCF536F6eaA6BF99`), PoolManager, V4Quoter, StateView, and the hookless native ETH/USDG PoolKey. The full PoolKey hashes to pool ID `0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982` with fee `500`, tick spacing `10`, and the zero hook address.
+
+Read-only mainnet validation reproduced V4Quoter output and successfully executed the complete `V4_SWAP → SWAP_EXACT_IN_SINGLE → SETTLE_ALL → TAKE_ALL` plan through `eth_estimateGas`/simulation. Runtime bytecode hashes matched the source pins. These checks used no wallet signature and returned `broadcasted: false`.
+
+There is **no user-approved v4 transaction hash or successful v4 receipt**. The older SwapRouter02 observation below remains historical v3 deployment evidence only and must not be treated as proof of v4 settlement.
 
 Robinhood Chain mainnet is EVM-compatible, chain ID `4663`; testnet is `46630`. Official docs publish RPC, sequencer, wallet, gas, finality, Stock Token API, and account-abstraction information.[22][25][26][27][28][29][30]
 

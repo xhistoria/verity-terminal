@@ -2,13 +2,15 @@
 
 A constrained, non-custodial execution terminal for Robinhood Chain.
 
-## Current public-beta scope
+## Current executable code scope
+
+The pinned v4 quote, calldata compiler, browser validator, runtime-code checks, and full transaction simulation are verified against Robinhood Chain mainnet. **No user-approved v4 transaction has been broadcast and no v4 settlement receipt exists yet.** Deployment availability must not be interpreted as receipt-verified execution.
 
 - Discover Rabby, MetaMask, and other injected wallets through Wagmi Core plus EIP-6963/EIP-1193.
 - Offer WalletConnect QR/mobile pairing when `REOWN_PROJECT_ID` is configured for the deployment.
 - Add or switch to Robinhood Chain (`4663`).
 - Read the connected ETH balance.
-- Simulate a bounded ETH → USDG trade through one pinned Uniswap V3 pool.
+- Quote and simulate a bounded ETH → USDG trade through one pinned, hookless Uniswap v4 pool.
 - Show expected output, minimum output, gas, router, pool fee, and quote expiry.
 - Sign and broadcast only from the user's wallet.
 - Track the receipt; a transaction hash is never labelled success.
@@ -19,10 +21,13 @@ The server does **not** receive private keys, sign transactions, or broadcast fo
 
 ## Pinned execution path
 
-- Router: `0xCaf681a66D020601342297493863E78C959E5cb2`
-- WETH: `0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73`
+- Universal Router v2.1.1: `0x06afBA43fd06227fA663b0dAeCF536F6eaA6BF99`
+- PoolManager: `0x8366a39CC670B4001A1121B8F6A443A643e40951`
+- V4Quoter: `0x8Dc178eFB8111BB0973Dd9d722ebeFF267c98F94`
 - USDG: `0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168`
-- V3 pool (0.01%): `0x52e65B17fB6E5BA00Ed806f37Afcd2DaA50271Ca`
+- v4 Pool ID (0.05%): `0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982`
+- PoolKey: native ETH / USDG, fee `500`, tick spacing `10`, hook `0x0000000000000000000000000000000000000000`
+- Universal Router program: command `V4_SWAP`; actions `SWAP_EXACT_IN_SINGLE → SETTLE_ALL → TAKE_ALL`
 
 Every address is versioned in source. Do not expand the allowlist without code/explorer verification and transaction tests.
 
@@ -84,7 +89,8 @@ Without them, the application uses Robinhood's rate-limited public RPC and label
 - Maximum input is 1 ETH per prepared quote.
 - Slippage is bounded to 0.10–5.00%.
 - Quote expiry is 60 seconds.
-- Exact router, pair, fee tier, recipient, value, deadline, minimum output, and nested calldata are ABI-decoded again in the browser before wallet signing.
+- The exact router, PoolKey, native value, deadline, minimum output, Universal Router command, v4 action sequence, settlement currencies, and empty hook data are recursively ABI-decoded and canonically re-encoded in the browser before wallet signing.
+- `ALLOW_REVERT`, Permit2 transfers, sub-plans, arbitrary commands/actions, non-zero hooks, and arbitrary hook data are not accepted.
 - Duplicate submission attempts are synchronously locked to one wallet prompt.
 - Active transaction hashes persist locally and receipt reconciliation stays pinned to Robinhood Chain even if the wallet account/network changes.
 - Quote API work is bounded to four concurrent requests per warm isolate and ten requests/minute/client, with `429` + `Retry-After`; broader launch still requires a shared platform WAF rule.

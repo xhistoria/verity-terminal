@@ -14,18 +14,28 @@ const quote = {
   tokenIn: 'ETH', tokenOut: 'USDG', value: '1000000000000000',
   expectedOut: '2495195', minimumOut: '2482719', slippageBps: 50,
   gasEstimate: '184451', simulatedAtBlock: 47123693, providerClass: 'public_rpc',
+  protocol: 'uniswap_v4', routerVersion: '2.1.1',
+  pool: '0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982',
+  hooks: '0x0000000000000000000000000000000000000000',
 };
 
 test('creates a bounded evidence journal entry from a broadcast transaction', () => {
   const entry = createJournalEntry({ hash, quote, now: 1_700_000_000_000 });
   assert.deepEqual(entry, {
-    version: 1, hash, chainId: 4663, account: quote.from.toLowerCase(),
+    version: 2, hash, chainId: 4663, account: quote.from.toLowerCase(),
     pair: 'ETH/USDG', input: quote.value, expectedOut: quote.expectedOut,
+    protocol: quote.protocol, routerVersion: quote.routerVersion, pool: quote.pool, hooks: quote.hooks,
     minimumOut: quote.minimumOut, slippageBps: 50, gasEstimate: quote.gasEstimate,
     simulatedAtBlock: quote.simulatedAtBlock, providerClass: 'public_rpc',
     status: 'pending', broadcastAt: 1_700_000_000_000, settledAt: null,
     receiptBlock: null,
   });
+});
+
+test('journal rejects v4 evidence outside the pinned route', () => {
+  assert.throws(() => createJournalEntry({ hash, quote: { ...quote, pool: `0x${'11'.repeat(32)}` } }), /journal_entry_invalid/);
+  assert.throws(() => createJournalEntry({ hash, quote: { ...quote, hooks: '0x0000000000000000000000000000000000000001' } }), /journal_entry_invalid/);
+  assert.throws(() => createJournalEntry({ hash, quote: { ...quote, routerVersion: 'unknown' } }), /journal_entry_invalid/);
 });
 
 test('journal upserts by transaction hash, newest first, and stays bounded', () => {

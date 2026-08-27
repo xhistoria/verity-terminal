@@ -1,6 +1,9 @@
 import { CHAIN, CONTRACTS, TOKENS } from './config.js';
 import { createBuyQuote, EXECUTION_POLICY } from './quote.js';
-import { estimateTransactionGas, probeChain, readTransactionReceipt, simulateBuyOnchain } from './onchain.js';
+import { estimateTransactionGas, probeChain, readTransactionReceipt, simulateBuyOnchain, simulateMarketQuoteOnchain } from './onchain.js';
+import { V4_POLICY } from '../shared/v4-policy.js';
+import { discoverMarketCatalog } from './markets.js';
+import { createMarketQuoteProbe } from './market-quote.js';
 
 const WALLET_CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' https://fonts.reown.com; connect-src 'self' https://rpc.mainnet.chain.robinhood.com https://rpc.walletconnect.com https://rpc.walletconnect.org https://relay.walletconnect.com https://relay.walletconnect.org wss://relay.walletconnect.com wss://relay.walletconnect.org https://pulse.walletconnect.com https://pulse.walletconnect.org https://api.web3modal.com https://api.web3modal.org https://explorer-api.walletconnect.com https://keys.walletconnect.com https://keys.walletconnect.org; img-src 'self' data: blob: https:; frame-src 'self' https://verify.walletconnect.com https://verify.walletconnect.org https://secure.walletconnect.com https://secure.walletconnect.org; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
 
@@ -32,9 +35,11 @@ export function createApp(overrides = {}, env = {}, options = {}) {
   let activeQuotes = 0;
   const dependencies = {
     simulateBuy: overrides.simulateBuy || ((params) => simulateBuyOnchain(params, env)),
+    simulateMarket: overrides.simulateMarket || ((params) => simulateMarketQuoteOnchain(params, env)),
     estimateGas: overrides.estimateGas || ((quote, context) => estimateTransactionGas(quote, env, context)),
     chainProbe: overrides.chainProbe || (() => probeChain(env)),
     receiptReader: overrides.receiptReader || ((hash) => readTransactionReceipt(hash, env)),
+    marketCatalog: overrides.marketCatalog || (() => discoverMarketCatalog(env)),
     now: overrides.now || Date.now,
   };
 
@@ -71,9 +76,10 @@ export function createApp(overrides = {}, env = {}, options = {}) {
             execution: {
               mode: 'non_custodial',
               pair: 'ETH/USDG',
-              route: 'Uniswap V3 exactInputSingle',
+              route: 'Uniswap v4 hookless exact-input single',
               router: CONTRACTS.router,
               pool: EXECUTION_POLICY.pool,
+              hooks: V4_POLICY.poolKey.hooks,
               serverSigning: false,
               broadcastByServer: false,
             },
@@ -95,13 +101,58 @@ export function createApp(overrides = {}, env = {}, options = {}) {
           tokens: TOKENS,
           execution: {
             pair: 'ETH/USDG',
+            protocol: V4_POLICY.protocol,
+            routerVersion: V4_POLICY.routerVersion,
             router: CONTRACTS.router,
             pool: EXECUTION_POLICY.pool,
             feeTier: EXECUTION_POLICY.fee,
+            tickSpacing: V4_POLICY.poolKey.tickSpacing,
+            hooks: V4_POLICY.poolKey.hooks,
+            command: V4_POLICY.command,
+            actions: V4_POLICY.actions,
             slippageBps: { min: 10, default: 50, max: 500 },
             maxAmountWei: EXECUTION_POLICY.maximumAmountWei.toString(),
           },
         });
+      }
+
+      if (url.pathname === '/api/markets') {
+        if (request.method !== 'GET') return json({ error: 'method_not_allowed' }, 405);
+        try {
+          return json(await dependencies.marketCatalog());
+        } catch {
+          return json({
+            error: 'provider_unavailable',
+            coverage: { state: 'PROVIDER_UNAVAILABLE', eventCompleteness: false },
+          }, 503);
+        }
+      }
+
+      if (url.pathname === '/api/market-quote') {
+        if (request.method !== 'POST') return json({ error: 'method_not_allowed' }, 405);
+        if (!acquireQuoteCapacity(request)) return json({ error: 'rate_limited' }, 429, { 'retry-after': '60' });
+        try {
+          const input = await readJson(request);
+          const quote = await createMarketQuoteProbe(input, {
+            catalog: dependencies.marketCatalog,
+            simulate: dependencies.simulateMarket,
+            now: dependencies.now,
+          });
+          return json({ ...quote, broadcasted: false });
+        } catch (error) {
+          const code = error?.code || error?.message;
+          const safe = new Set([
+            'request_invalid', 'request_too_large', 'wallet_invalid', 'pool_id_invalid',
+            'amount_out_of_range', 'market_not_found', 'pool_key_unverified', 'pool_id_mismatch',
+            'hook_not_allowlisted', 'native_exact_input_unsupported', 'quote_unavailable',
+            'provider_unavailable',
+          ]);
+          const message = safe.has(code) ? code : 'quote_unavailable';
+          const status = error?.status || (message === 'provider_unavailable' || message === 'quote_unavailable' ? 502 : 400);
+          return json({ error: message }, status);
+        } finally {
+          activeQuotes -= 1;
+        }
       }
 
       if (url.pathname === '/api/receipt') {

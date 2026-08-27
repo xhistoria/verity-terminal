@@ -100,8 +100,8 @@
           <h2>Fail closed before the wallet prompt.</h2>
           <div class="docs-grid">
             <div><strong>No key custody</strong><p>No seed phrase, private key, server signer, relayer signer, or recovery credential.</p></div>
-            <div><strong>Pinned route</strong><p>One router, pair, pool, fee tier, recipient policy, and native value relationship.</p></div>
-            <div><strong>Calldata verification</strong><p>The browser ABI-decodes and canonically re-encodes the outer multicall and nested exactInputSingle call.</p></div>
+            <div><strong>Pinned route</strong><p>One Uniswap v4 Universal Router, PoolManager, PoolKey, fee, tick spacing, zero hook, recipient policy, and native value relationship.</p></div>
+            <div><strong>Calldata verification</strong><p>The browser recursively decodes and canonically re-encodes Universal Router <code>execute</code>, the single <code>V4_SWAP</code> command, and the exact action sequence <code>SWAP_EXACT_IN_SINGLE → SETTLE_ALL → TAKE_ALL</code>.</p></div>
             <div><strong>Bounded intent</strong><p>Maximum 1 ETH, slippage 0.10–5.00%, short quote lifetime, and on-chain deadline.</p></div>
             <div><strong>Single flight</strong><p>A synchronous execution lock prevents duplicate wallet submission prompts.</p></div>
             <div><strong>Settlement truth</strong><p>Pending, confirmed, reverted, and unknown are never collapsed into one success state.</p></div>
@@ -115,7 +115,7 @@
           <ul>
             <li>Coverage is explicitly <strong>browser-local</strong>, capped at 50 entries.</li>
             <li>Reloading the same browser preserves the journal best-effort.</li>
-            <li>JSON export is available from the terminal.</li>
+            <li>JSON export uses evidence schema v2. Existing v1 browser-local entries remain readable and new entries are stored under the v2 key.</li>
             <li>A shareable receipt URL verifies the public transaction hash through the chain-pinned receipt API.</li>
             <li>Local storage is not a durable multi-device database and must not be treated as one.</li>
           </ul>
@@ -125,12 +125,15 @@
           <p class="label">06 · PINNED CONTRACTS</p>
           <h2>Versioned execution allowlist.</h2>
           <dl class="docs-addresses">
-            <div><dt>SwapRouter02</dt><dd><code>0xCaf681a66D020601342297493863E78C959E5cb2</code></dd></div>
-            <div><dt>WETH</dt><dd><code>0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73</code></dd></div>
+            <div><dt>Universal Router · v2.1.1</dt><dd><code>0x06afBA43fd06227fA663b0dAeCF536F6eaA6BF99</code></dd></div>
+            <div><dt>PoolManager</dt><dd><code>0x8366a39CC670B4001A1121B8F6A443A643e40951</code></dd></div>
             <div><dt>USDG</dt><dd><code>0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168</code></dd></div>
-            <div><dt>V3 pool · 0.01%</dt><dd><code>0x52e65B17fB6E5BA00Ed806f37Afcd2DaA50271Ca</code></dd></div>
-            <div><dt>QuoterV2</dt><dd><code>0x33e885eD0Ec9bF04EcfB19341582aADCb4c8A9E7</code></dd></div>
+            <div><dt>V4 Pool ID · 0.05%</dt><dd><code>0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982</code></dd></div>
+            <div><dt>PoolKey</dt><dd>Native ETH / USDG · fee 500 · tick spacing 10 · hookless</dd></div>
+            <div><dt>V4Quoter</dt><dd><code>0x8Dc178eFB8111BB0973Dd9d722ebeFF267c98F94</code></dd></div>
+            <div><dt>StateView</dt><dd><code>0xF3334192D15450CDD385c8B70e03f9a6bD9E673b</code></dd></div>
           </dl>
+          <div class="docs-callout"><strong>Runtime code hashes</strong><p>Quote preparation fails closed unless live bytecode matches the source-pinned hashes: Universal Router <code>0xbe8e8191bb42d843c2e948a5a55772eaab864ce01e54dcd47c9d089170b302d5</code>, PoolManager <code>0xbd3881180b547f5fe817545743cfb4343e96b1bc6640dcd70c106b0066e95626</code>, V4Quoter <code>0xd707b1da8cb165e5ea35a3b4450d971eb562ec171e23492aa117036b78a868f6</code>, and StateView <code>0x7d9c591e0956fd89d98feb4ffcfe8bf1f7a62bd485edd979fa21d104b49878a6</code>.</p></div>
         </section>
 
         <section id="api-reference">
@@ -139,6 +142,8 @@
           <div class="docs-api-list">
             <div><code>GET /api/health</code><p>Chain/provider status and non-custodial execution scope.</p></div>
             <div><code>GET /api/config</code><p>Pinned chain, token, router, pool, fee, and input constraints.</p></div>
+            <div><code>GET /api/markets</code><p>Source-scoped v4.fun identities plus canonical PoolManager evidence, with explicit partial and provider-unavailable coverage.</p></div>
+            <div><code>POST /api/market-quote</code><p>Read-only V4Quoter liquidity evidence for a canonical PoolKey. It returns no router target, calldata, approval, minimum output, signature, or broadcast path.</p></div>
             <div><code>POST /api/quote</code><p>Fresh constrained quote, simulation evidence, gas estimate, and exact calldata. Never broadcasts.</p></div>
             <div><code>GET /api/receipt?hash=0x…</code><p>Returns pending, confirmed, reverted, unknown, or provider-unavailable truth.</p></div>
           </div>
@@ -150,6 +155,8 @@
           <h2>What Verity does not claim.</h2>
           <ul>
             <li>The public Robinhood RPC is rate-limited and is not sufficient as the sole provider for broad launch.</li>
+            <li>Market indexing is partial while Blockscout coverage has a gap between the certified historical prefix and bounded recent window. Discovery is never treated as execution approval.</li>
+            <li>Generic market probes are quote-only. Multi-token execution remains blocked until token behavior, hook registry/runtime, authorization, and settlement semantics are verified.</li>
             <li>The current API limiter is per warm runtime instance, not distributed global WAF enforcement.</li>
             <li>Simulation is expected behavior at a specific chain state, not a guarantee.</li>
             <li>A successful chain receipt is not a claim of full Ethereum finality.</li>

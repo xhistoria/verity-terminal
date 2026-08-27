@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <a class="skip-link" href="#trade">Skip to execution</a>
+  <a class="skip-link" href="#marketExplorer">Skip to market explorer</a>
 
   <header class="nav floating-nav" id="floatingNav">
     <a class="brand" href="/" aria-label="Verity home">
@@ -20,8 +20,9 @@
       <span>VERITY</span>
     </a>
     <nav class="nav-links" aria-label="Primary navigation">
-      <a href="#trade">Execute</a>
-      <a href="#journal">Journal</a>
+      <a href="#marketExplorer">Explorer</a>
+      <a href="#trade">Adapter lab</a>
+      <a href="#journal">Receipts</a>
       <a href="/docs.html">Docs</a>
     </nav>
     <div class="nav-actions">
@@ -51,21 +52,56 @@
       <div class="hero-grid">
         <h1>Understand first.<br><span>Execute with limits.</span></h1>
         <div class="hero-aside">
-          <p class="hero-copy">A constrained execution path with live on-chain simulation, explicit slippage protection, local wallet signing, and settlement truth.</p>
+          <p class="hero-copy">Discover Robinhood Chain v4 markets, inspect their hooks and liquidity evidence, then execute only through verified adapters with local wallet signing.</p>
           <div class="truth-row" aria-label="Safety properties">
-            <span>Server never signs</span><span>Allowlisted route</span><span>Exact calldata</span>
+            <span>Every discovered market visible</span><span>Unknown hooks blocked</span><span>Server never signs</span>
           </div>
         </div>
       </div>
     </section>
 
+    <section class="market-explorer shell animate" id="marketExplorer" aria-labelledby="marketExplorerTitle">
+      <div class="market-heading">
+        <div>
+          <p class="eyebrow">ROBINHOOD CHAIN · UNISWAP V4</p>
+          <h2 id="marketExplorerTitle">Every discovered market.<br><span>Only verified adapters execute.</span></h2>
+        </div>
+        <p>Market identity comes from v4.fun and PoolManager logs. Discovery is not approval: PoolKey, hook runtime, quote, calldata, and simulation must all pass independently.</p>
+      </div>
+
+      <div class="coverage-strip" id="marketCoverage" role="status" aria-live="polite">
+        <span class="coverage-dot" aria-hidden="true"></span>
+        <strong>Loading market coverage</strong>
+        <span>Checking v4.fun and Blockscout independently…</span>
+      </div>
+
+      <div class="market-controls">
+        <label class="market-search" for="marketSearch">
+          <span>Search markets</span>
+          <input id="marketSearch" type="search" placeholder="Token, address, or Pool ID" autocomplete="off">
+        </label>
+        <div class="market-filters" id="marketFilters" aria-label="Market filters">
+          <button type="button" class="market-filter active" data-market-filter="all">All markets</button>
+          <button type="button" class="market-filter" data-market-filter="candidate">Adapter candidates</button>
+          <button type="button" class="market-filter" data-market-filter="hookless">Hookless</button>
+          <button type="button" class="market-filter" data-market-filter="blocked">Unverified hooks</button>
+        </div>
+      </div>
+
+      <div class="market-summary" id="marketSummary">No catalog loaded yet.</div>
+      <div class="market-grid" id="marketGrid" aria-live="polite" aria-busy="true">
+        <article class="market-empty"><strong>Loading markets</strong><span>Execution stays disabled until evidence is available.</span></article>
+      </div>
+      <button class="button secondary market-load-more hidden" id="marketLoadMore" type="button">Show more markets</button>
+    </section>
+
     <section class="product-stage shell animate" id="trade" aria-label="Execution terminal">
       <div class="window-bar">
         <div>
-          <span class="window-kicker">VERITY TERMINAL</span>
-          <strong>ETH / USDG</strong>
+          <span class="window-kicker">VERIFIED ADAPTER LAB</span>
+          <strong>Hookless ETH / USDG reference</strong>
         </div>
-        <span class="window-mode">CONSTRAINED PREVIEW</span>
+        <span class="window-mode">NOT THE MULTI-MARKET FINAL</span>
       </div>
 
       <div class="workspace">
@@ -123,10 +159,13 @@
               <div><dt>Wallet recipient</dt><dd id="reviewRecipient">—</dd></div>
               <div><dt>Native value</dt><dd id="reviewValue">—</dd></div>
               <div><dt>Token path</dt><dd>ETH → USDG</dd></div>
-              <div><dt>Call selector</dt><dd><code>0x5ae401dc</code></dd></div>
+              <div><dt>Protocol</dt><dd id="reviewProtocol">Uniswap v4</dd></div>
+              <div><dt>Pool ID</dt><dd id="reviewPool">—</dd></div>
+              <div><dt>Call selector</dt><dd><code>0x3593564c</code></dd></div>
               <div><dt>Estimated gas</dt><dd id="reviewGas">—</dd></div>
               <div><dt>Simulated block</dt><dd id="reviewBlock">—</dd></div>
-              <div><dt>Pool fee</dt><dd>0.01%</dd></div>
+              <div><dt>Pool fee</dt><dd>0.05%</dd></div>
+              <div><dt>Hook</dt><dd>None · zero address</dd></div>
               <div><dt>Router</dt><dd><a id="routerLink" target="_blank" rel="noopener noreferrer">—</a></dd></div>
               <div><dt>On-chain deadline</dt><dd id="reviewDeadline">—</dd></div>
               <div><dt>Quote expires</dt><dd id="quoteExpiry">—</dd></div>
@@ -147,7 +186,7 @@
         <h2>Evidence before action.<br>Truth after broadcast.</h2>
       </div>
       <div class="status-grid">
-        <article class="safety-card animate"><span class="card-index">01</span><p class="label">ROUTE POLICY</p><h3>One verified path</h3><p>Only ETH → USDG through the pinned Uniswap V3 pool and SwapRouter02 is enabled. Arbitrary tokens and contracts are rejected.</p></article>
+        <article class="safety-card animate"><span class="card-index">01</span><p class="label">ADAPTER POLICY</p><h3>Many markets, closed compilers</h3><p>Hookless and explicitly verified hook classes can earn separate adapters. Unknown hooks stay visible but blocked; arbitrary commands, hookData, recipients, and contracts are never passed through.</p></article>
         <article class="safety-card animate"><span class="card-index">02</span><p class="label">SIGNING BOUNDARY</p><h3>Your wallet, your approval</h3><p>The server prepares and simulates calldata. Only your connected wallet can sign and broadcast the transaction.</p></article>
         <article class="safety-card animate"><span class="card-index">03</span><p class="label">SETTLEMENT TRUTH</p><h3>Hash is not success</h3><p>Broadcast, pending, receipt-confirmed, reverted, and unknown remain separate states. A receipt is required; full finality is not claimed.</p></article>
       </div>

@@ -1,37 +1,14 @@
-import { decodeFunctionData, encodeFunctionData, parseAbi } from 'viem';
-
-const PINNED_ROUTER = '0xcaf681a66d020601342297493863e78c959e5cb2';
-const PINNED_WETH = '0x0bd7d308f8e1639fab988df18a8011f41eacad73';
-const PINNED_USDG = '0x5fc5360d0400a0fd4f2af552add042d716f1d168';
-const PINNED_FEE = 100;
-const OUTER_ABI = parseAbi(['function multicall(uint256 deadline, bytes[] data) payable returns (bytes[] results)']);
-const SWAP_ABI = parseAbi(['function exactInputSingle((address tokenIn,address tokenOut,uint24 fee,address recipient,uint256 amountIn,uint256 amountOutMinimum,uint160 sqrtPriceLimitX96) params) payable returns (uint256 amountOut)']);
+import { decodeV4ExactIn, V4_POLICY } from '../shared/v4-policy.js';
 
 function decodeAndValidateCalldata(quote, account) {
   try {
-    const outer = decodeFunctionData({ abi: OUTER_ABI, data: quote.data });
-    if (outer.functionName !== 'multicall' || outer.args[1].length !== 1) return false;
-    const canonical = encodeFunctionData({ abi: OUTER_ABI, functionName: 'multicall', args: outer.args });
-    if (canonical.toLowerCase() !== quote.data.toLowerCase()) return false;
-
-    const [deadline, calls] = outer.args;
-    if (deadline !== BigInt(quote.deadline)
-      || deadline !== BigInt(Math.floor(Number(quote.expiresAt) / 1000))) return false;
-
-    const swap = decodeFunctionData({ abi: SWAP_ABI, data: calls[0] });
-    if (swap.functionName !== 'exactInputSingle') return false;
-    const nestedCanonical = encodeFunctionData({ abi: SWAP_ABI, functionName: 'exactInputSingle', args: swap.args });
-    if (nestedCanonical.toLowerCase() !== calls[0].toLowerCase()) return false;
-
-    const params = swap.args[0];
-    return params.tokenIn.toLowerCase() === PINNED_WETH
-      && params.tokenOut.toLowerCase() === PINNED_USDG
-      && Number(params.fee) === PINNED_FEE
-      && params.recipient.toLowerCase() === account.toLowerCase()
-      && params.amountIn === BigInt(quote.amountIn)
-      && params.amountIn === BigInt(quote.value)
-      && params.amountOutMinimum === BigInt(quote.minimumOut)
-      && params.sqrtPriceLimitX96 === 0n;
+    const decoded = decodeV4ExactIn(quote.data);
+    if (decoded.deadline !== BigInt(quote.deadline)
+      || decoded.deadline !== BigInt(Math.floor(Number(quote.expiresAt) / 1000))) return false;
+    return decoded.amountIn === BigInt(quote.amountIn)
+      && decoded.amountIn === BigInt(quote.value)
+      && decoded.minimumOut === BigInt(quote.minimumOut)
+      && quote.from.toLowerCase() === account.toLowerCase();
   } catch {
     return false;
   }
@@ -41,22 +18,41 @@ export function isQuoteExecutable(quote, context) {
   if (!quote || !context.account) return false;
   try {
     const slippageBps = Number(quote.slippageBps);
+    const amountIn = BigInt(quote.amountIn);
     const expectedOut = BigInt(quote.expectedOut);
     const minimumOut = BigInt(quote.minimumOut);
+    const quotedAt = Number(quote.quotedAt);
+    const expiresAt = Number(quote.expiresAt);
+    const now = Number(context.now);
     const boundedOutput = Number.isInteger(slippageBps)
       && slippageBps >= 10
       && slippageBps <= 500
       && expectedOut > 0n
+      && minimumOut > 0n
       && minimumOut === expectedOut * BigInt(10_000 - slippageBps) / 10_000n;
+    const boundedLifetime = Number.isFinite(quotedAt)
+      && Number.isFinite(expiresAt)
+      && Number.isFinite(now)
+      && expiresAt - quotedAt === 60_000
+      && quotedAt <= now + 5_000
+      && expiresAt <= now + 65_000;
     return Boolean(
       Number(quote.chainId) === Number(context.chainId)
       && quote.from?.toLowerCase() === context.account.toLowerCase()
-      && quote.to?.toLowerCase() === PINNED_ROUTER
+      && quote.to?.toLowerCase() === V4_POLICY.router.toLowerCase()
       && quote.tokenIn === 'ETH'
       && quote.tokenOut === 'USDG'
+      && quote.protocol === V4_POLICY.protocol
+      && quote.routerVersion === V4_POLICY.routerVersion
+      && quote.pool?.toLowerCase() === V4_POLICY.poolId.toLowerCase()
+      && quote.hooks?.toLowerCase() === V4_POLICY.poolKey.hooks.toLowerCase()
+      && Number(quote.feeTier) === V4_POLICY.poolKey.fee
+      && amountIn > 0n
+      && amountIn <= 10n ** 18n
       && boundedOutput
-      && BigInt(quote.value) === BigInt(quote.amountIn)
-      && Number(context.now) < Number(quote.expiresAt)
+      && boundedLifetime
+      && BigInt(quote.value) === amountIn
+      && now < expiresAt
       && typeof quote.data === 'string'
       && /^0x[0-9a-f]+$/i.test(quote.data)
       && decodeAndValidateCalldata(quote, context.account)

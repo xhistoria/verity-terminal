@@ -1,10 +1,39 @@
-import { decodeFunctionResult, encodeFunctionData, parseAbi } from 'viem';
-import { CHAIN, CONTRACTS } from './config.js';
+import { decodeFunctionResult, encodeFunctionData, keccak256 } from 'viem';
+import { CHAIN } from './config.js';
 import { validatedRpcRequest } from './rpc.js';
+import { V4_POLICY, V4_QUOTER_ABI } from '../shared/v4-policy.js';
 
-const ROUTER_ABI = parseAbi([
-  'function exactInputSingle((address tokenIn,address tokenOut,uint24 fee,address recipient,uint256 amountIn,uint256 amountOutMinimum,uint160 sqrtPriceLimitX96) params) payable returns (uint256 amountOut)',
-]);
+const deploymentChecks = new Map();
+
+export function assertV4CodeHashes(hashes) {
+  for (const [name, expected] of Object.entries(V4_POLICY.runtimeCodeHashes)) {
+    if (hashes?.[name]?.toLowerCase() !== expected.toLowerCase()) {
+      throw new Error(`v4_deployment_hash_mismatch:${name}`);
+    }
+  }
+  return true;
+}
+
+async function verifyV4Deployments(provider, rpcRequest = validatedRpcRequest) {
+  if (!deploymentChecks.has(provider)) {
+    const check = (async () => {
+      const targets = {
+        router: V4_POLICY.router,
+        poolManager: V4_POLICY.poolManager,
+        quoter: V4_POLICY.quoter,
+        stateView: V4_POLICY.stateView,
+      };
+      const hashes = Object.fromEntries(await Promise.all(Object.entries(targets).map(async ([name, address]) => {
+        const code = await rpcRequest(provider, CHAIN.id, 'eth_getCode', [address, 'latest']);
+        return [name, keccak256(code.value)];
+      })));
+      assertV4CodeHashes(hashes);
+    })();
+    deploymentChecks.set(provider, check);
+    check.catch(() => deploymentChecks.delete(provider));
+  }
+  return deploymentChecks.get(provider);
+}
 
 export function rpcUrls(env = {}) {
   return [env.RPC_URL, env.RPC_FALLBACK_URL, ...CHAIN.rpcUrls].filter(Boolean);
@@ -15,32 +44,37 @@ function providerClass(provider, env) {
   return env.RPC_PROVIDER_CLASS === 'authenticated_rpc' ? 'authenticated_rpc' : 'custom_rpc';
 }
 
-export async function simulateBuyOnchain(params, env = {}) {
+export async function simulateMarketQuoteOnchain(params, env = {}, dependencies = {}) {
+  const rpcRequest = dependencies.rpcRequest || validatedRpcRequest;
+  const verifyDeployments = dependencies.verifyDeployments || ((provider) => verifyV4Deployments(provider, rpcRequest));
   const data = encodeFunctionData({
-    abi: ROUTER_ABI,
-    functionName: 'exactInputSingle',
+    abi: V4_QUOTER_ABI,
+    functionName: 'quoteExactInputSingle',
     args: [{
-      tokenIn: params.tokenIn,
-      tokenOut: params.tokenOut,
-      fee: params.fee,
-      recipient: params.wallet,
-      amountIn: params.amountIn,
-      amountOutMinimum: 0n,
-      sqrtPriceLimitX96: 0n,
+      poolKey: params.poolKey,
+      zeroForOne: params.zeroForOne,
+      exactAmount: params.amountIn,
+      hookData: params.hookData,
     }],
   });
 
   for (const provider of rpcUrls(env)) {
     try {
-      const block = await validatedRpcRequest(provider, CHAIN.id, 'eth_blockNumber');
-      const call = await validatedRpcRequest(provider, CHAIN.id, 'eth_call', [{
+      await verifyDeployments(provider);
+      const block = await rpcRequest(provider, CHAIN.id, 'eth_blockNumber');
+      const call = await rpcRequest(provider, CHAIN.id, 'eth_call', [{
         from: params.wallet,
-        to: CONTRACTS.router,
-        value: `0x${params.amountIn.toString(16)}`,
+        to: V4_POLICY.quoter,
         data,
       }, block.value]);
+      const [amountOut, quoteGasEstimate] = decodeFunctionResult({
+        abi: V4_QUOTER_ABI,
+        functionName: 'quoteExactInputSingle',
+        data: call.value,
+      });
       return {
-        amountOut: decodeFunctionResult({ abi: ROUTER_ABI, functionName: 'exactInputSingle', data: call.value }),
+        amountOut,
+        quoteGasEstimate,
         blockNumber: Number(BigInt(block.value)),
         blockTag: block.value,
         provider,
@@ -53,6 +87,15 @@ export async function simulateBuyOnchain(params, env = {}) {
   const error = new Error('provider_unavailable');
   error.code = 'provider_unavailable';
   throw error;
+}
+
+export function simulateBuyOnchain(params, env = {}, dependencies = {}) {
+  return simulateMarketQuoteOnchain({
+    ...params,
+    poolKey: V4_POLICY.poolKey,
+    zeroForOne: true,
+    hookData: '0x',
+  }, env, dependencies);
 }
 
 export async function estimateTransactionGas(quote, env = {}, context = {}) {
